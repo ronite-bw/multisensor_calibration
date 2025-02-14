@@ -6,6 +6,7 @@ Forthcoming
 ------------------
 
 Features:
+
 * Added Documentation.
 * Added Node multisensor_calibration with Calibration Configurator
 * Added Node extrinsic_camera_lidar_calibration

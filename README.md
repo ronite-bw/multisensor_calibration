@@ -9,6 +9,17 @@ It provides a variety of methods and applications to calibrate complex multi-sen
 - <b>Extrinsic LiDAR-Reference Calibration</b>, and
 - <b>Extrinsic LiDAR-Vehicle Calibration</b> (prototype).
 
+The software is licensed under the new [BSD 3-Clause license](license.md). If you use this project for your research, please cite:
+
+```text
+TODO: add bibtex
+```
+
+The latest source code is available on [GitHub](https://github.com/FraunhoferIOSB/multisensor_calibration).
+Furthermore, the `multisensor_calibration` is also released as an official package for ROS 2 and can be installed with apt-get.
+Since ROS 1 is soon end-of-life, there will be no official release for ROS 1.
+However, there is a version of the source code available for ROS 1 under the branch [noetic](https://github.com/FraunhoferIOSB/camera_aravis2/tree/noetic).
+
 
 **Acknowledgement**: This software was developed as part of the projects [AKIT-PRO](https://a-kit.de) (grant no. 13N15673) and [ROBDEKON – Robotic Systems for Decontamination in Hazardous Environments](https://robdekon.de/) (grant nos. 13N14674 and 13N16538), funded by the Federal Ministry of Education and Research (BMBF) under the German Federal Government’s Research for Civil Security program.
 
@@ -27,7 +38,7 @@ It provides a variety of methods and applications to calibrate complex multi-sen
 - [Getting Started](#getting-started)
     - [Requirements](#requirements)
     - [Build](#build)
-- [Changlog](CHANGELOG.md)
+- [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 - [License](LICENSE)
 
