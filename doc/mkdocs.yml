@@ -16,7 +16,7 @@ markdown_extensions:
 
 repo_url: https://github.com/FraunhoferIOSB/multisensor_calibration
 repo_name: 'GitHub'
-edit_uri: https://github.com/FraunhoferIOSB/multisensor_calibration/docs/user_docs
+edit_uri: https://github.com/FraunhoferIOSB/multisensor_calibration/doc/user_docs
 
 extra_javascript:
   - js/tables.js
