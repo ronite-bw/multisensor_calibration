@@ -7,5 +7,5 @@
 - [Nodes and Nodelets](nodes_and_nodelets.md)
 - [Troubleshooting](troubleshooting.md)
 - [License](license.md)
-- [Changelog](https://github.com/FraunhoferIOSB/multisensor_calibration/blob/main/CHANGELOG.rst)
+- [Changelog](https://github.com/FraunhoferIOSB/multisensor_calibration/blob/main/multisensor_calibration/CHANGELOG.rst)
 - [Contributing](https://github.com/FraunhoferIOSB/multisensor_calibration/blob/main/CONTRIBUTING.md)
