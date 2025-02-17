@@ -26,9 +26,9 @@ However, there is a version of the source code available for ROS 1 under the bra
 
 ### Continuous Integration:
 
-| Service    | devel  | main |
+| Service    | devel   | main   |
 | ---------- | ------- | ------ |
-| GitHub     | | |
+| Docs       |         | [![deploy](https://github.com/FraunhoferIOSB/multisensor_calibration/actions/workflows/docs.yml/badge.svg)](https://github.com/FraunhoferIOSB/multisensor_calibration/actions/workflows/docs.yml) |
 
 ------------------------
 
