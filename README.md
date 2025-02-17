@@ -28,7 +28,7 @@ However, there is a version of the source code available for ROS 1 under the bra
 
 | Service    | devel   | main   |
 | ---------- | ------- | ------ |
-| Docs       |         | [![deploy](https://github.com/FraunhoferIOSB/multisensor_calibration/actions/workflows/docs.yml/badge.svg)](https://github.com/FraunhoferIOSB/multisensor_calibration/actions/workflows/docs.yml) |
+| GitHub     |         | [![deploy](https://github.com/FraunhoferIOSB/multisensor_calibration/actions/workflows/docs.yml/badge.svg)](https://github.com/FraunhoferIOSB/multisensor_calibration/actions/workflows/docs.yml) |
 
 ------------------------
 
