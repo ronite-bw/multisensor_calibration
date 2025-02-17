@@ -23,7 +23,7 @@ TODO: add bibtex
 The latest source code is available on [GitHub](https://github.com/FraunhoferIOSB/multisensor_calibration).
 Furthermore, the 'multisensor_calibration' is also released as an official package for ROS 2 and can be installed with apt-get.
 Since ROS 1 is soon end-of-life, there will be no official release for ROS 1.
-However, there is a version of the source code available for ROS 1 under the branch [noetic](https://github.com/FraunhoferIOSB/camera_aravis2/tree/noetic).
+However, there is a version of the source code available for ROS 1 under the branch [noetic](https://github.com/FraunhoferIOSB/multisensor_calibration/tree/noetic).
 
 ## Getting Started
 
