@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>multisensor_calibration</name>
+  <version>0.0.0</version>
+  <description>
+    Collection of methods and applications to calibrate multi-sensor-systems, e.g.
+    camera to LiDAR, LiDAR to LiDAR, and LiDAR to vehicle. 
+  </description>
+
+  <maintainer email="miguel.granero@iosb.fraunhofer.de">Miguel Granero</maintainer>
+  <license>BSD</license>
+
+  <author>Boitumelo Ruf</author>
+  <author>Miguel Granero</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>cv_bridge</depend>
+  <depend>nodelet</depend>
+  <depend>image_transport</depend>
+  <depend>pcl_ros</depend>
+  <depend>pcl_conversions</depend>
+  <depend>roscpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>tf</depend>
+  <depend>dynamic_reconfigure</depend>
+  <depend>message_generation</depend>
+  <depend>message_runtime</depend>
+  <depend>urdf</depend>
+  <depend>rviz</depend>
+
+  <export>
+    <nodelet plugin="${prefix}/nodelet_multisensor_calibration.xml" />
+  </export>
+
+
+</package>

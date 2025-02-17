@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<launch>
+  <node pkg="multisensor_calibration" type="multisensor_calibration" name="multisensor_calibration"/>
+</launch> 

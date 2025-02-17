@@ -71,7 +71,7 @@ Further requirements:
 2. (OPTIONAL) Clone and build 'small_gicp'.<br>If this step is omitted, it will be executed as part of the first build.
 
     ```bash
-    cd multisensor_calibration && ./scripts/clone_small_gicp.sh && ./build_and_install_small_gicp.sh
+    cd multisensor_calibration && ./thirdparty/clone_small_gicp.sh && ./thirdparty/build_and_install_small_gicp.sh
     ```
 
 3. Initialize `rosdep` and install dependencies:

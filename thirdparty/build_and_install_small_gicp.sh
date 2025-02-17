@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
 #
 # Redistribution and use in source and binary forms, with or without
@@ -26,9 +28,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-#!/bin/bash
-
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 SMALL_GICP_DIR=$SCRIPT_DIR/small_gicp
 
 if [ ! -d "$SMALL_GICP_DIR" ]; then

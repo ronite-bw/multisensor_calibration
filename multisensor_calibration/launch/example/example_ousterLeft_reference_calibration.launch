@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- ============================== Arguments =================================================-->
+
+  <!-- Development with  ROSbag -->
+  <arg name="use_rosbag"                default="false"/>
+
+  
+  <!-- Calibration configuration -->
+  <arg name="target_config_file"        default="$(find multisensor_calibration)/cfg/TargetWithCirclesAndAruco.yaml"/>
+  <arg name="robot_ws"                  default="$(env HOME)/multisensor_calibration/example"/>
+  <arg name="src_lidar_sensor_name"     default="ouster_left"/>
+  <arg name="src_lidar_cloud_topic"     default="/ouster_left_raw_pcl/cloud"/>
+  <arg name="reference_name"            default="reference"/>
+  <arg name="reference_frame_id"        default="base_link"/>
+  <arg name="base_frame_id"             default=""/>
+  <arg name="save_observations"         default="true"/>
+
+  <!-- ============================== Nodes / Nodelets ==========================================-->
+
+  <!-- Setting for when using data from rosbag -->
+  <group if="$(arg use_rosbag)">
+    <rosparam param="use_sim_time">true</rosparam>
+  </group>
+  <group unless="$(arg use_rosbag)">
+    <rosparam param="use_sim_time">false</rosparam> <!-- reset use_sim_time -->
+  </group>
+
+  <!-- extrinsic_lidar_lidar_calibration -->
+  <node pkg="multisensor_calibration" type="extrinsic_lidar_reference_calibration" name="$(arg src_lidar_sensor_name)_$(arg reference_name)_calibration" output="screen">
+    <param name="/calibration/robot_ws_path"             value="$(arg robot_ws)"/>
+    <param name="/calibration/target_config_file"        value="$(arg target_config_file)" />
+    <param name="/calibration/src_lidar_sensor_name"     value="$(arg src_lidar_sensor_name)" />
+    <param name="/calibration/src_lidar_cloud_topic"     value="$(arg src_lidar_cloud_topic)" />
+    <param name="/calibration/reference_name"            value="$(arg reference_name)" />
+    <param name="/calibration/reference_frame_id"        value="$(arg reference_frame_id)" />
+    <param name="/calibration/base_frame_id"             value="$(arg base_frame_id)" />
+    <param name="/calibration/save_observations"         value="$(arg save_observations)" />
+  </node>
+</launch> 
