@@ -2,15 +2,17 @@
 Changelog for package multisensor_calibration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
+1.0.0 (28.02.2025)
 ------------------
 
 Features:
 
-* Added Documentation.
-* Added Node multisensor_calibration with Calibration Configurator
-* Added Node extrinsic_camera_lidar_calibration
-* Added Node extrinsic_lidar_lidar_calibration
-* Added Node extrinsic_lidar_vehicle_calibration
+* Extrinsic Camera-LiDAR Calibration
+* Extrinsic Camera-Reference Calibration
+* Extrinsic LiDAR-LiDAR Calibration
+* Extrinsic LiDAR-Reference Calibration
+* Extrinsic LiDAR-Vehicle Calibration (prototype)
+* Calibration Configurator
+* Documentation
 
 Contributors: Boitumelo Ruf, Christian Frese, Raphael Hagmanns, Tom Schmidt, Mohamed Youssef Hanini
