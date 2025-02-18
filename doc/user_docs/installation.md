@@ -41,9 +41,7 @@ cd ../../
 (OPTIONAL) Clone and build 'small_gicp'.<br>If this step is omitted, it will be executed as part of the first build.
 
 ```bash
-cd src/multisensor_calibration
-./scripts/clone_small_gicp.sh && ./build_and_install_small_gicp.sh
-cd ../../
+src/multisensor_calibration/thirdparty/clone_small_gicp.sh && src/multisensor_calibration/thirdparty/build_and_install_small_gicp.sh
 ```
 </li>
 
@@ -109,9 +107,7 @@ git clone git@github.com:FraunhoferIOSB/multisensor_calibration.git
 (OPTIONAL) Clone and build 'small_gicp'.<br>If this step is omitted, it will be executed as part of the first build.
 
 ```bash
-cd src/multisensor_calibration
-./scripts/clone_small_gicp.sh && ./build_and_install_small_gicp.sh
-cd ../../
+src/multisensor_calibration/thirdparty/clone_small_gicp.sh && src/multisensor_calibration/thirdparty/build_and_install_small_gicp.sh
 ```
 </li>
 
@@ -152,12 +148,6 @@ colcon build --symlink-install --packages-up-to multisensor_calibration
 </li>
 
 </ol>
-
-### Developer Documentation
-
-```text
-TODO: How to build developer documentation
-```
 
 ### Requirements
 
