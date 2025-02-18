@@ -37,6 +37,8 @@ However, there is a version of the source code available for ROS 1 under the bra
 - [Getting Started](#getting-started)
     - [Requirements](#requirements)
     - [Build](#build)
+    - [Run](#run)
+    - [Documentation](#documentation)
 - [Contributing](CONTRIBUTING.md)
 - [License](LICENSE)
 
@@ -95,6 +97,7 @@ If 'CMAKE_BUILD_TYPE' omitted, multisensor_calibration will be build in 'Release
 ```bash
 rosrun multisensor_calibration multisensor_calibration
 ```
+### Documentation
 
-See user documentation on how to use.
+See the [user documentation](https://fraunhoferiosb.github.io/multisensor_calibration/) for basic usage, tutorials and workflows.
 
