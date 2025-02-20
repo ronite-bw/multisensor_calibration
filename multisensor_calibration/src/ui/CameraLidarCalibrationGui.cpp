@@ -203,8 +203,7 @@ void CameraLidarCalibrationGui::loadVisualizer()
             pFusionDialog_ = std::make_shared<ImageViewDialog>(pCalibControlWindow_.get());
             pFusionDialog_->setWindowModality(Qt::NonModal);
             pFusionDialog_->setWindowTitle("Sensor Fusion");
-            pFusionDialog_->subscribeToImageTopic(pNode_.get(), std::string(pVisualizerNode_->get_namespace()) +
-                                                                  "/fused_image");
+            pFusionDialog_->subscribeToImageTopic(pNode_.get(), "fused_image");
 
             //--- connect rejection signal, i.e. close signal of dialog, this will unload node when dialog is closed
             QObject::connect(pFusionDialog_.get(), &QDialog::rejected,

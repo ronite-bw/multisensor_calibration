@@ -217,8 +217,8 @@ void LidarLidarCalibrationGui::loadVisualizer()
                                                      ? pCalibrationMetaData_->ref_frame_id
                                                      : pCalibrationMetaData_->base_frame_id);
             pFusionDialog_->addAxes();
-            pFusionDialog_->addRegionsOfInterestCloud(std::string(pVisualizerNode_->get_namespace()) + "/cloud_0_enhanced");
-            pFusionDialog_->addRegionsOfInterestCloud(std::string(pVisualizerNode_->get_namespace()) + "/cloud_1_enhanced");
+            pFusionDialog_->addRegionsOfInterestCloud("cloud_0_enhanced");
+            pFusionDialog_->addRegionsOfInterestCloud("cloud_1_enhanced");
 
             //--- connect rejection signal, i.e. close signal of dialog, this will unload node when dialog is closed
             QObject::connect(pFusionDialog_.get(), &QDialog::rejected,
