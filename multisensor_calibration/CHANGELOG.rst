@@ -2,11 +2,13 @@
 Changelog for package multisensor_calibration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-1.0.0 (28.02.2025)
+Forthcoming
+-----------
+* feat: Port of multisensor_calibration to ROS2 Jazzy.
+* Contributors: Miguel Granero
+
+1.0.0 (2025-02-18)
 ------------------
-
-Features:
-
 * Extrinsic Camera-LiDAR Calibration
 * Extrinsic Camera-Reference Calibration
 * Extrinsic LiDAR-LiDAR Calibration
