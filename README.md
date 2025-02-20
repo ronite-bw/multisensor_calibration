@@ -84,18 +84,18 @@ Further requirements:
     rosdep install --from-paths src -y --ignore-src
     ```
 
-4. Run `catkin` to build from source:<br>
+4. Run `colcon` to build from source:<br>
 To build in 'Debug' mode add `-DCMAKE_BUILD_TYPE=Debug` to catkin command.
 If 'CMAKE_BUILD_TYPE' omitted, multisensor_calibration will be build in 'Release' mode.
 
     ```bash
-    catkin build -j8 -DCMAKE_BUILD_TYPE=Release multisensor_calibration
+    MAKEFLAGS='-j 8' colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
     ```
 
 ### Run
 
 ```bash
-rosrun multisensor_calibration multisensor_calibration
+ros2 launch multisensor_calibration multi_sensor_calib_example.launch.py
 ```
 ### Documentation
 
