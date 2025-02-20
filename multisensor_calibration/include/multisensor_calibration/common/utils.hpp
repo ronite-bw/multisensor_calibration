@@ -32,19 +32,23 @@
 // STD
 #define USE_MATH_DEFINES
 #include <cmath>
-#include <ctime>
 #include <filesystem>
+#include <functional>
 
 // Eigen
 #include <Eigen/SVD>
 
 // ROS
-#include <geometry_msgs/Pose.h>
-#include <ros/ros.h>
-#include <sensor_msgs/CameraInfo.h>
-#include <tf/tf.h>
+#include "geometry_msgs/msg/transform.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
+#include <geometry_msgs/msg/pose.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/camera_info.hpp>
+#include <tf2/LinearMath/Transform.h>
 
 // PCL
+#include <pcl/common/common.h>
+#include <pcl/common/io.h>
 #include <pcl/common/pca.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/filters/extract_indices.h>
@@ -59,31 +63,32 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/eigen.hpp>
 
+// Lib3D
+#include <multisensor_calibration/common/lib3D/core/extrinsics.hpp>
+#include <multisensor_calibration/common/lib3D/core/intrinsics.hpp>
+
 // multisensor_calibration
-#include "../config/CalibrationTarget.hpp"
-#include "../config/Cutout.h"
+#include "../calibration_target/CalibrationTarget.hpp"
+#include "../calibration_target/Cutout.h"
 #include "common.h"
-#include "lib3D/core/extrinsics.hpp"
-#include "lib3D/core/intrinsics.hpp"
 
 namespace multisensor_calibration
 {
 namespace utils
 {
-
+/************************************************************************************************/
 /**
  * @brief Method to ask for binary user input given the question string. The question can be
  * passed as separate sting arguments.
  *
  * @param[in] iQuestionStrs Individual text strings for the question. Each string will then be
  * printed into separate line.
- * @param[in] iNodeletName Optional parameter to pass the nodelet name. If passed, this will be
- * added to the ROS_INFO output.
+ * @param[in] iLogger Logger object used for output.
  *
  * @return True, if user answered with yes. False if user answered with no.
  */
 inline bool askForBinaryUserInput(const std::vector<std::string> iQuestionStrs,
-                                  const std::string& iNodeletName = "")
+                                  const rclcpp::Logger& iLogger)
 {
     bool answer = true;
 
@@ -95,10 +100,7 @@ inline bool askForBinaryUserInput(const std::vector<std::string> iQuestionStrs,
     }
 
     //--- print question
-    if (iNodeletName.empty())
-        ROS_INFO("%s (y/n)", strStrm.str().c_str());
-    else
-        ROS_INFO("[%s] %s (y/n)", iNodeletName.c_str(), strStrm.str().c_str());
+    RCLCPP_INFO(iLogger, "%s (y/n)", strStrm.str().c_str());
 
     //--- get user input
     bool isUserInputValid = false; // flag to indicate valid user input
@@ -129,7 +131,7 @@ inline bool askForBinaryUserInput(const std::vector<std::string> iQuestionStrs,
 
     return answer;
 }
-
+/************************************************************************************************/
 /**
  * @brief Method to average a set of quaternions.
  * The algorithm used is described here:
@@ -191,7 +193,7 @@ inline Eigen::Vector4f averageQuaternion(const std::vector<Eigen::Vector4f> iQua
 
     return average;
 }
-
+/************************************************************************************************/
 /**
  * @brief Method to backup file with given file path. This will rename the file, appending the date
  * and time of last modification to file name.
@@ -223,7 +225,7 @@ inline void backupFile(const std::filesystem::path& iFilePath)
     //--- rename file
     rename(iFilePath, backupFilePath);
 }
-
+/************************************************************************************************/
 /**
  * @brief Calculate mean reprojection error for given object points w.r.t. given image points
  *
@@ -283,7 +285,7 @@ inline double calculateMeanReprojectionError(const std::vector<cv::Point2f> iIma
     //--- calculate mean and return
     return reprojectionError;
 }
-
+/************************************************************************************************/
 /**
  * @brief Calculate mean translational difference and mean angular error between the calibration
  * targets observed by the LiDAR and the camera. This will transform the poses observed by the camera
@@ -359,7 +361,7 @@ inline void calculateMeanBoardPoseDifference(
     oMeanTranslDifference /= counter;
     oMeanAngularError /= counter;
 }
-
+/************************************************************************************************/
 /**
  * @brief Calculate mean translational difference and mean angular error between the calibration
  * targets observed by the LiDAR and the camera. This will transform the poses observed by the camera
@@ -413,7 +415,7 @@ inline void calculateMeanBoardPoseDifference(
     //--- normalize to compute mean
     oMeanTranslDifference /= counter;
 }
-
+/************************************************************************************************/
 /**
  * @brief Function to calculate the root mean squared error (RMSE) between two aligned point clouds.
  *
@@ -477,7 +479,7 @@ inline double calculateRootMeanSquaredError(
 
     return std::sqrt(icp.getFitnessScore());
 }
-
+/************************************************************************************************/
 /**
  * @brief Function to calculate the root mean squared error (RMSE) between two point clouds. In this, the
  * source point cloud is first transformed by iSrcTransform before the RMSE is calculated
@@ -513,7 +515,7 @@ inline double calculateRootMeanSquaredError(
                                                                ipSrcIndices,
                                                                ipRefIndices);
 }
-
+/************************************************************************************************/
 /**
  * @brief Function to calculate the root mean squared error (RMSE) between two point clouds. In this, the
  * source point cloud is first transformed by iSrcTransform before the RMSE is calculated
@@ -548,7 +550,7 @@ inline double calculateRootMeanSquaredError(
                                                                ipSrcIndices,
                                                                ipRefIndices);
 }
-
+/************************************************************************************************/
 /**
  * @brief Function to compute normal vectors for point cloud of a rotating LiDAR sensor.
  *
@@ -708,7 +710,7 @@ inline void computeNormalVectorsForPointCloud(const typename pcl::PointCloud<Poi
         }
     }
 }
-
+/************************************************************************************************/
 /**
  * @brief Function to compute normal vectors for point cloud.
  *
@@ -740,7 +742,7 @@ inline void computeNormalVectorsForPointCloudPcl(const typename pcl::PointCloud<
     ne.setRadiusSearch(iSearchRadiusMeter);
     ne.compute(*opCloud);
 }
-
+/************************************************************************************************/
 /**
  * @brief Function to compute the oriented bounding box for a given input point cloud.
  *
@@ -815,7 +817,7 @@ inline void computeOrientedBoundingBox(const typename pcl::PointCloud<PointT>::P
 
         //--- iterate through the transformation and test number of point lying in areas of cutouts
         int wtaNumPoints = INT_MAX; // minimum number of points within areas of cutouts
-        for (const auto rot : rotationCandidates)
+        for (const auto& rot : rotationCandidates)
         {
             //--- transform input cloud into local coordinate system where principal directions are aligned
             //--- to the coordinate axes
@@ -880,7 +882,7 @@ inline void computeOrientedBoundingBox(const typename pcl::PointCloud<PointT>::P
             //--- Use method 'searchRadius' from object of KDTree to count number of points that are
             //--- located within the cutouts of the calibration target.
             int numPoints = 0;
-            for (const auto cutout : iCalibTarget.pBoardCutouts)
+            for (const auto& cutout : iCalibTarget.pBoardCutouts)
             {
                 //--- define search point
                 PointT searchPoint;
@@ -891,7 +893,7 @@ inline void computeOrientedBoundingBox(const typename pcl::PointCloud<PointT>::P
                 //--- search for points inside the cutout
                 std::vector<int> pointIdxRadiusSearch;
                 std::vector<float> pointRadiusSquaredDistance;
-                numPoints += tree.radiusSearch(searchPoint, cutout->getRadius() * 0.75f, pointIdxRadiusSearch,
+                numPoints += tree.radiusSearch(searchPoint, cutout->getRadius() * 0.75, pointIdxRadiusSearch,
                                                pointRadiusSquaredDistance);
                 // numPoints += static_cast<int>(pointIdxRadiusSearch.size());
             }
@@ -928,44 +930,85 @@ inline void computeOrientedBoundingBox(const typename pcl::PointCloud<PointT>::P
 
     oBboxTransform = wtaTransformation.inverse();
 }
-
+/************************************************************************************************/
 /**
  * @brief Method to convert geometry_msgs::Pose to tf::Transform.
  *
  * @param[in] iPose geometry_msgs::Pose
  * @param[out] oTransform tf::Transform
  */
-inline void cvtGeometryPose2TfTransform(const geometry_msgs::Pose& iPose, tf::Transform& oTransform)
+inline void cvtGeometryPose2TfTransform(const geometry_msgs::msg::Pose& iPose,
+                                        tf2::Transform& oTransform)
 {
-    oTransform = tf::Transform(tf::Quaternion(iPose.orientation.x,
-                                              iPose.orientation.y,
-                                              iPose.orientation.z,
-                                              iPose.orientation.w),
-                               tf::Vector3(iPose.position.x,
-                                           iPose.position.y,
-                                           iPose.position.z));
+    oTransform = tf2::Transform(tf2::Quaternion(iPose.orientation.x,
+                                                iPose.orientation.y,
+                                                iPose.orientation.z,
+                                                iPose.orientation.w),
+                                tf2::Vector3(iPose.position.x,
+                                             iPose.position.y,
+                                             iPose.position.z));
 }
-
+/************************************************************************************************/
+/**
+ * @brief Method to convert geometry_msgs::Transform to tf::Transform.
+ *
+ * @param[in] iTransform geometry_msgs::Transform
+ * @param[out] oTransform tf::Transform
+ */
+inline void cvtGeometryTransform2TfTransform(const geometry_msgs::msg::Transform& iTransform,
+                                             tf2::Transform& oTransform)
+{
+    oTransform = tf2::Transform(tf2::Quaternion(iTransform.rotation.x,
+                                                iTransform.rotation.y,
+                                                iTransform.rotation.z,
+                                                iTransform.rotation.w),
+                                tf2::Vector3(iTransform.translation.x,
+                                             iTransform.translation.y,
+                                             iTransform.translation.z));
+}
+/************************************************************************************************/
 /**
  * @brief Method to convert tf::Transform to geometry_msgs::Pose.
  *
  * @param[in] iTransform tf::Transform
  * @param[out] oPose geometry_msgs::Pose
  */
-inline void cvtTfTransform2GeometryPose(const tf::Transform& iTransform, geometry_msgs::Pose& oPose)
+inline void cvtTfTransform2GeometryPose(const tf2::Transform& iTransform,
+                                        geometry_msgs::msg::Pose& oPose)
 {
-    const tf::Vector3& origin = iTransform.getOrigin();
-    oPose.position.x          = origin.x();
-    oPose.position.y          = origin.y();
-    oPose.position.z          = origin.z();
+    const tf2::Vector3& origin = iTransform.getOrigin();
+    oPose.position.x           = origin.x();
+    oPose.position.y           = origin.y();
+    oPose.position.z           = origin.z();
 
-    const tf::Quaternion& rotation = iTransform.getRotation();
-    oPose.orientation.w            = rotation.w();
-    oPose.orientation.x            = rotation.x();
-    oPose.orientation.y            = rotation.y();
-    oPose.orientation.z            = rotation.z();
+    const tf2::Quaternion& rotation = iTransform.getRotation();
+    oPose.orientation.w             = rotation.w();
+    oPose.orientation.x             = rotation.x();
+    oPose.orientation.y             = rotation.y();
+    oPose.orientation.z             = rotation.z();
 }
+/************************************************************************************************/
+/**
+ * @brief Method to convert tf::Transform to geometry_msgs::Transform.
+ *
+ * @param[in] iTransform tf::Transform
+ * @param[out] oPose geometry_msgs::Transform
+ */
+inline void cvtTfTransform2GeometryTransform(const tf2::Transform& iTransform,
+                                             geometry_msgs::msg::Transform& oPose)
+{
+    const tf2::Vector3& origin = iTransform.getOrigin();
+    oPose.translation.x        = origin.x();
+    oPose.translation.y        = origin.y();
+    oPose.translation.z        = origin.z();
 
+    const tf2::Quaternion& rotation = iTransform.getRotation();
+    oPose.rotation.w                = rotation.w();
+    oPose.rotation.x                = rotation.x();
+    oPose.rotation.y                = rotation.y();
+    oPose.rotation.z                = rotation.z();
+}
+/************************************************************************************************/
 /**
  * @brief Method to draw a random float number in the range of 0,1 (inclusively)
  */
@@ -976,6 +1019,51 @@ inline float drawRandomFloat()
     float rand_float = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
     return rand_float;
 }
+/************************************************************************************************/
+/**
+ * @brief Wrapper around ROS spin_until_future_complete for GUI responsiveness
+ */
+template <typename FutureT>
+inline rclcpp::FutureReturnCode doWhileWaiting(rclcpp::Executor::SharedPtr pExecutor, FutureT& future, std::function<void()> doInLoopFunction, int64_t duration_ms = 100)
+{
+    rclcpp::FutureReturnCode retCode;
+    do
+    {
+        pExecutor->cancel();
+        retCode = pExecutor->spin_until_future_complete(future, std::chrono::milliseconds(duration_ms));
+        doInLoopFunction();
+    } while (retCode == rclcpp::FutureReturnCode::TIMEOUT);
+
+    return retCode;
+}
+
+/************************************************************************************************/
+/**
+ * @brief Gets the cameraInfo topic from an image topic
+ * @param[in] iImageTopic image topic
+ * @param[in] iCameraNamespace if the camera has another namespace as the image
+ *
+ * @returns the cameraInfo topic
+ */
+static inline std::string image2CameraInfoTopic(std::string iImageTopic, std::string iCameraNamespace)
+{
+    std::string cameraInfoTopicName = "";
+    if (iCameraNamespace.empty())
+    {
+        std::size_t pos     = iImageTopic.find_last_of("/");
+        cameraInfoTopicName = iImageTopic.substr(0, pos) + "/camera_info";
+    }
+    else
+    {
+        //--- strip cameraNamespace_ from last "/"
+        cameraInfoTopicName = iCameraNamespace;
+        while (cameraInfoTopicName.back() == '/')
+            cameraInfoTopicName.pop_back();
+        cameraInfoTopicName += "/camera_info";
+    }
+
+    return cameraInfoTopicName;
+}
 
 /**
  * @brief Function to set camera extrinsics by using the data from a tf transform.
@@ -983,17 +1071,43 @@ inline float drawRandomFloat()
  * @param[in] iTfTransform Tf transform.
  * @param[out] oCameraExtrinsics Resulting camera extrinsics.
  */
-inline void setCameraExtrinsicsFromTfTransform(const tf::Transform& iTfTransform,
+inline void setCameraExtrinsicsFromTfTransform(const tf2::Transform& iTfTransform,
                                                lib3d::Extrinsics& oCameraExtrinsics)
 {
-    tf::Vector3 tfOrigin = iTfTransform.getOrigin();
-    tf::Quaternion tfQ   = iTfTransform.getRotation();
-    Eigen::Quaternionf eigenQ(static_cast<float>(tfQ.getW()), static_cast<float>(tfQ.getX()),
-                              static_cast<float>(tfQ.getY()), static_cast<float>(tfQ.getZ()));
+    tf2::Vector3 tfOrigin = iTfTransform.getOrigin();
+    tf2::Quaternion tfQ   = iTfTransform.getRotation();
+    Eigen::Quaternionf eigenQ(tfQ.getW(), tfQ.getX(), tfQ.getY(), tfQ.getZ());
     Eigen::Matrix4f eigenRtMatrix   = Eigen::Matrix4f::Identity();
-    eigenRtMatrix.block(0, 3, 3, 1) = Eigen::Vector3f(static_cast<float>(tfOrigin.x()),
-                                                      static_cast<float>(tfOrigin.y()),
-                                                      static_cast<float>(tfOrigin.z()));
+    eigenRtMatrix.block(0, 3, 3, 1) = Eigen::Vector3f(tfOrigin.x(), tfOrigin.y(), tfOrigin.z());
+    eigenRtMatrix.block(0, 0, 3, 3) = eigenQ.toRotationMatrix();
+    cv::Mat cvRtMatrix;
+    cv::eigen2cv(eigenRtMatrix, cvRtMatrix);
+    oCameraExtrinsics.setRTMatrix(cvRtMatrix, lib3d::Extrinsics::REF_2_LOCAL);
+}
+
+/**
+ * @brief Function to set camera extrinsics by using the data from a tf transform.
+ *
+ * @param[in] iTfTransform Tf transform.
+ * @param[out] oCameraExtrinsics Resulting camera extrinsics.
+ */
+inline void setCameraExtrinsicsFromTfTransform(const geometry_msgs::msg::TransformStamped& iTfTransform,
+                                               lib3d::Extrinsics& oCameraExtrinsics)
+{
+    tf2::Vector3 tfOrigin;
+    tfOrigin.setX(iTfTransform.transform.translation.x);
+    tfOrigin.setY(iTfTransform.transform.translation.y);
+    tfOrigin.setZ(iTfTransform.transform.translation.z);
+
+    tf2::Quaternion tfQ;
+    tfQ.setX(iTfTransform.transform.rotation.x);
+    tfQ.setY(iTfTransform.transform.rotation.y);
+    tfQ.setZ(iTfTransform.transform.rotation.z);
+    tfQ.setW(iTfTransform.transform.rotation.w);
+
+    Eigen::Quaternionf eigenQ(tfQ.getW(), tfQ.getX(), tfQ.getY(), tfQ.getZ());
+    Eigen::Matrix4f eigenRtMatrix   = Eigen::Matrix4f::Identity();
+    eigenRtMatrix.block(0, 3, 3, 1) = Eigen::Vector3f(tfOrigin.x(), tfOrigin.y(), tfOrigin.z());
     eigenRtMatrix.block(0, 0, 3, 3) = eigenQ.toRotationMatrix();
     cv::Mat cvRtMatrix;
     cv::eigen2cv(eigenRtMatrix, cvRtMatrix);
@@ -1006,7 +1120,7 @@ inline void setCameraExtrinsicsFromTfTransform(const tf::Transform& iTfTransform
  * @param[in] iCamInfo Camera info message.
  * @param[out] oCameraIntrinsics Resulting camera intrinsics.
  */
-inline void setCameraIntrinsicsFromCameraInfo(const sensor_msgs::CameraInfo& iCamInfo,
+inline void setCameraIntrinsicsFromCameraInfo(const sensor_msgs::msg::CameraInfo& iCamInfo,
                                               lib3d::Intrinsics& oCameraIntrinsics,
                                               const EImageState& iImgState = DISTORTED)
 {
@@ -1017,10 +1131,10 @@ inline void setCameraIntrinsicsFromCameraInfo(const sensor_msgs::CameraInfo& iCa
     default:
     case DISTORTED:
     {
-        oCameraIntrinsics.setBy_K(cv::Matx33d(iCamInfo.K[0], iCamInfo.K[1], iCamInfo.K[2],
-                                              iCamInfo.K[3], iCamInfo.K[4], iCamInfo.K[5],
-                                              iCamInfo.K[6], iCamInfo.K[7], iCamInfo.K[8]));
-        oCameraIntrinsics.setDistortionCoeffs(cv::Mat(iCamInfo.D, true));
+        oCameraIntrinsics.setBy_K(cv::Matx33d(iCamInfo.k[0], iCamInfo.k[1], iCamInfo.k[2],
+                                              iCamInfo.k[3], iCamInfo.k[4], iCamInfo.k[5],
+                                              iCamInfo.k[6], iCamInfo.k[7], iCamInfo.k[8]));
+        oCameraIntrinsics.setDistortionCoeffs(cv::Mat(iCamInfo.d, true));
     }
     break;
 
@@ -1034,9 +1148,9 @@ inline void setCameraIntrinsicsFromCameraInfo(const sensor_msgs::CameraInfo& iCa
         //--- optional rotation and translation, in this case the identity and 0, respectively.
         //--- see: http://wiki.ros.org/image_pipeline/CameraInfo
 
-        oCameraIntrinsics.setBy_K(cv::Matx33d(iCamInfo.P[0], iCamInfo.P[1], iCamInfo.P[2],
-                                              iCamInfo.P[4], iCamInfo.P[5], iCamInfo.P[6],
-                                              iCamInfo.P[8], iCamInfo.P[9], iCamInfo.P[10]));
+        oCameraIntrinsics.setBy_K(cv::Matx33d(iCamInfo.p[0], iCamInfo.p[1], iCamInfo.p[2],
+                                              iCamInfo.p[4], iCamInfo.p[5], iCamInfo.p[6],
+                                              iCamInfo.p[8], iCamInfo.p[9], iCamInfo.p[10]));
         oCameraIntrinsics.setDistortionCoeffs(cv::Mat());
     }
     break;
@@ -1050,7 +1164,7 @@ inline void setCameraIntrinsicsFromCameraInfo(const sensor_msgs::CameraInfo& iCa
  * @param[out] oTfTransform Resulting TF Transform.
  */
 inline void setTfTransformFromCameraExtrinsics(const lib3d::Extrinsics& iCameraExtrinsics,
-                                               tf::Transform& oTfTransform)
+                                               tf2::Transform& oTfTransform)
 {
     //--- get RT Matrix in Eigen format
     cv::Mat cvRtMatrix = cv::Mat(iCameraExtrinsics.getRTMatrix(lib3d::Extrinsics::REF_2_LOCAL));
@@ -1062,38 +1176,8 @@ inline void setTfTransformFromCameraExtrinsics(const lib3d::Extrinsics& iCameraE
     Eigen::Vector3f eigenT = eigenRtMatrix.block(0, 3, 3, 1);
 
     //--- store in tf
-    oTfTransform.setOrigin(tf::Vector3(eigenT.x(), eigenT.y(), eigenT.z()));
-    oTfTransform.setRotation(tf::Quaternion(eigenQ.x(), eigenQ.y(), eigenQ.z(), eigenQ.w()));
-}
-
-/**
- * @brief Method to split string by delimiter into list of floats.
- * If a substring is not a number it will not be added to the output list
- *
- * @param[in] iStr String to split.
- * @param[in] iDelimiter Delimiter at which to split.
- * @return List of floats.
- */
-inline std::vector<float> splitStringToFloat(const std::string& iStr, const char& iDelimiter)
-{
-    std::vector<float> fltList;
-
-    std::istringstream strStream(iStr);
-    std::string s;
-    while (getline(strStream, s, iDelimiter))
-    {
-        try
-        {
-            fltList.push_back(std::stof(s));
-        }
-        catch (const std::exception& e)
-        {
-            ROS_WARN("[multisensor_calibration::utils::splitStringToFloat] %s is not a number!",
-                     s.c_str());
-        }
-    }
-
-    return fltList;
+    oTfTransform.setOrigin(tf2::Vector3(eigenT.x(), eigenT.y(), eigenT.z()));
+    oTfTransform.setRotation(tf2::Quaternion(eigenQ.x(), eigenQ.y(), eigenQ.z(), eigenQ.w()));
 }
 
 } // namespace utils

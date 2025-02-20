@@ -35,11 +35,10 @@
 #include <Qt>
 
 // ROS
-#include <ros/node_handle.h>
-#include <rosgraph_msgs/Log.h>
+#include <rcl_interfaces/msg/log.hpp>
 
-// multisensor_calibration
-#include "AboutDialog.h"
+// Multisensor calibration
+#include "multisensor_calibration/ui/AboutDialog.h"
 
 namespace multisensor_calibration
 {
@@ -175,13 +174,15 @@ class CalibrationControlWindow : public QMainWindow
      *
      * @param[in] pLogMsg Pointer to log message.
      */
-    void printLogMessage(const rosgraph_msgs::Log::ConstPtr pLogMsg);
+    void printLogMessage(const rcl_interfaces::msg::Log::ConstSharedPtr pLogMsg);
 
   signals:
     /**
      * @brief Signal emitted when control window is closed.
      */
     void closed();
+
+    void newLogMessage(QString newMsg);
 
   private:
     /**
@@ -196,7 +197,7 @@ class CalibrationControlWindow : public QMainWindow
                                   Qt::CheckState buttonInitialCheckState = Qt::Checked) const;
 
     /**
-     * @brief Handle triggering of about documentation
+     * @brief Handle triggering of documentation action
      */
     void onActionDocumentationTriggered() const;
 

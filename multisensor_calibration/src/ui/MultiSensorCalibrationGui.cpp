@@ -1,43 +1,31 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+/***********************************************************************
+ *
+ *   Copyright (c) 2022 - 2024 Fraunhofer Institute of Optronics,
+ *   System Technologies and Image Exploitation IOSB
+ *
+ **********************************************************************/
 
-#include "../include/multisensor_calibration/ui/MultiSensorCalibrationGui.h"
+#include "multisensor_calibration/ui/MultiSensorCalibrationGui.h"
 
 // Qt
 #include <QApplication>
 #include <QMessageBox>
+#include <QObject>
 
 // multisensor_calibration
-#include "../include/multisensor_calibration/common/common.h"
-#include "../include/multisensor_calibration/ui/CameraLidarCalibrationGui.h"
-#include "../include/multisensor_calibration/ui/CameraReferenceCalibrationGui.h"
-#include "../include/multisensor_calibration/ui/LidarLidarCalibrationGui.h"
-#include "../include/multisensor_calibration/ui/LidarReferenceCalibrationGui.h"
+#include "multisensor_calibration/common/common.h"
+#include "multisensor_calibration/ui/CameraLidarCalibrationGui.h"
+#include "multisensor_calibration/ui/CameraReferenceCalibrationGui.h"
+#include "multisensor_calibration/ui/LidarLidarCalibrationGui.h"
+#include "multisensor_calibration/ui/LidarReferenceCalibrationGui.h"
+
+#include "multisensor_calibration/calibration/ExtrinsicCameraLidarCalibration.h"
+#include "multisensor_calibration/calibration/ExtrinsicCameraReferenceCalibration.h"
+#include "multisensor_calibration/calibration/ExtrinsicLidarLidarCalibration.h"
+#include "multisensor_calibration/calibration/ExtrinsicLidarReferenceCalibration.h"
+
+#include "multisensor_calibration/guidance/GuidedCameraLidarTargetPlacementNode.h"
+#include "multisensor_calibration/guidance/GuidedLidarLidarTargetPlacementNode.h"
 
 namespace multisensor_calibration
 {
@@ -47,19 +35,34 @@ MultiSensorCalibrationGui::MultiSensorCalibrationGui(const std::string& iAppTitl
                                                      const std::string& iGuiSubNamespace) :
   GuiBase(iAppTitle, iGuiSubNamespace),
   pCalibConfigDialog_(nullptr),
-  pCalibrationGui_(nullptr)
+  pCalibrationGui_(nullptr),
+  pCalibration_(nullptr)
 {
 }
 
 //==================================================================================================
 MultiSensorCalibrationGui::~MultiSensorCalibrationGui()
 {
+    rclcpp::shutdown();
+#ifdef MULTI_THREADED
+    if (guidanceThread_.joinable())
+        guidanceThread_.join();
+    if (calibrationThread_.joinable())
+        calibrationThread_.join();
+#endif
 }
 
 //==================================================================================================
-void MultiSensorCalibrationGui::init()
+bool MultiSensorCalibrationGui::init(const std::shared_ptr<rclcpp::Executor>& ipExec,
+                                     const rclcpp::NodeOptions& iNodeOpts)
 {
-    GuiBase::init();
+    // if (!GuiBase::init(ipExec, iNodeOpts))
+    //     return false;
+    if (ipExec == nullptr)
+        return false;
+    pExecutor_ = ipExec;
+
+    nodeOptions_ = rclcpp::NodeOptions(iNodeOpts);
 
     pCalibConfigDialog_ = std::make_shared<CalibrationConfigDialog>();
 
@@ -69,158 +72,102 @@ void MultiSensorCalibrationGui::init()
             this, &MultiSensorCalibrationGui::handleRosLoopTerminated);
 
     pCalibConfigDialog_->show();
+
+    return true;
 }
 
 //==================================================================================================
 void MultiSensorCalibrationGui::runExtrinsicCameraLidarCalibration()
 {
-    if (!pNodeletLoader_)
-        pNodeletLoader_ = std::make_shared<nodelet::Loader>();
-
-    // Name of the calibration nodelet instance
-    std::string calibratorName =
-      ros::this_node::getName() + "/" + multisensor_calibration::CALIBRATOR_SUB_NAMESPACE;
-
-    // Name of the guidance nodelet instance
-    std::string guidanceName =
-      ros::this_node::getName() + "/" + multisensor_calibration::GUIDANCE_SUB_NAMESPACE;
-
-    //--- set parameters for calibration nodelet
-    for (auto opt : pCalibConfigDialog_->getBoolTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
-    for (auto opt : pCalibConfigDialog_->getDoubleTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
-    for (auto opt : pCalibConfigDialog_->getIntTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
-    for (auto opt : pCalibConfigDialog_->getStringTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
-
-    //--- Load nodelets
-    pNodeletLoader_->load(calibratorName,
-                          "multisensor_calibration/ExtrinsicCameraLidarCalibrationNodelet", {}, {});
-    pNodeletLoader_->load(guidanceName,
-                          "multisensor_calibration/GuidedCameraLidarTargetPlacementNodelet", {}, {});
-
-    //--- load gui
-    pCalibrationGui_.reset(
-      new CameraLidarCalibrationGui(appTitle_, multisensor_calibration::GUI_SUB_NAMESPACE));
-
-    pCalibrationGui_->setNodeletLoaderPtr(pNodeletLoader_);
-    pCalibrationGui_->init();
+    runExtrinsicCalibration<
+      multisensor_calibration::ExtrinsicCameraLidarCalibration,
+      multisensor_calibration::GuidedCameraLidarTargetPlacementNode,
+      CameraLidarCalibrationGui>();
 }
 
 //==================================================================================================
 void MultiSensorCalibrationGui::runExtrinsicCameraReferenceCalibration()
 {
-    if (!pNodeletLoader_)
-        pNodeletLoader_ = std::make_shared<nodelet::Loader>();
-
-    // Name of the calibration nodelet instance
-    std::string calibratorName =
-      ros::this_node::getName() + "/" + multisensor_calibration::CALIBRATOR_SUB_NAMESPACE;
-
-    // Name of the guidance nodelet instance
-    std::string guidanceName =
-      ros::this_node::getName() + "/" + multisensor_calibration::GUIDANCE_SUB_NAMESPACE;
-
-    //--- set parameters for calibration nodelet
-    for (auto opt : pCalibConfigDialog_->getBoolTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
-    for (auto opt : pCalibConfigDialog_->getDoubleTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
-    for (auto opt : pCalibConfigDialog_->getIntTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
-    for (auto opt : pCalibConfigDialog_->getStringTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
-
-    //--- Load nodelets
-    pNodeletLoader_->load(calibratorName,
-                          "multisensor_calibration/ExtrinsicCameraReferenceCalibrationNodelet", {}, {});
-    pNodeletLoader_->load(guidanceName,
-                          "multisensor_calibration/GuidedCameraLidarTargetPlacementNodelet", {}, {});
-
-    //--- load gui
-    pCalibrationGui_.reset(
-      new CameraReferenceCalibrationGui(appTitle_, multisensor_calibration::GUI_SUB_NAMESPACE));
-
-    pCalibrationGui_->setNodeletLoaderPtr(pNodeletLoader_);
-    pCalibrationGui_->init();
+    runExtrinsicCalibration<
+      multisensor_calibration::ExtrinsicCameraReferenceCalibration,
+      multisensor_calibration::GuidedCameraLidarTargetPlacementNode,
+      CameraReferenceCalibrationGui>();
 }
 
 //==================================================================================================
 void MultiSensorCalibrationGui::runExtrinsicLidarLidarCalibration()
 {
-    if (!pNodeletLoader_)
-        pNodeletLoader_ = std::make_shared<nodelet::Loader>();
-
-    // Name of the calibration nodelet instance
-    std::string calibratorName =
-      ros::this_node::getName() + "/" + multisensor_calibration::CALIBRATOR_SUB_NAMESPACE;
-
-    // Name of the guidance nodelet instance
-    std::string guidanceName =
-      ros::this_node::getName() + "/" + multisensor_calibration::GUIDANCE_SUB_NAMESPACE;
-
-    //--- set parameters for calibration nodelet
-    for (auto opt : pCalibConfigDialog_->getBoolTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
-    for (auto opt : pCalibConfigDialog_->getDoubleTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
-    for (auto opt : pCalibConfigDialog_->getIntTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
-    for (auto opt : pCalibConfigDialog_->getStringTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
-
-    //--- Load nodelets
-    pNodeletLoader_->load(calibratorName,
-                          "multisensor_calibration/ExtrinsicLidarLidarCalibrationNodelet", {}, {});
-    pNodeletLoader_->load(guidanceName,
-                          "multisensor_calibration/GuidedLidarLidarTargetPlacementNodelet", {}, {});
-
-    //--- load gui
-    pCalibrationGui_.reset(
-      new LidarLidarCalibrationGui(appTitle_, multisensor_calibration::GUI_SUB_NAMESPACE));
-
-    pCalibrationGui_->setNodeletLoaderPtr(pNodeletLoader_);
-    pCalibrationGui_->init();
+    runExtrinsicCalibration<
+      multisensor_calibration::ExtrinsicLidarLidarCalibration,
+      multisensor_calibration::GuidedLidarLidarTargetPlacementNode,
+      LidarLidarCalibrationGui>();
 }
 
 //==================================================================================================
 void MultiSensorCalibrationGui::runExtrinsicLidarReferenceCalibration()
 {
-    if (!pNodeletLoader_)
-        pNodeletLoader_ = std::make_shared<nodelet::Loader>();
+    runExtrinsicCalibration<
+      multisensor_calibration::ExtrinsicLidarReferenceCalibration,
+      multisensor_calibration::GuidedLidarLidarTargetPlacementNode,
+      LidarReferenceCalibrationGui>();
+}
 
-    // Name of the calibration nodelet instance
-    std::string calibratorName =
-      ros::this_node::getName() + "/" + multisensor_calibration::CALIBRATOR_SUB_NAMESPACE;
+//==================================================================================================
+template <typename CalibrationType, typename GuidanceType, typename GuiType>
+typename std::enable_if<
+  std::is_base_of<CalibrationGuiBase, GuiType>::value &&
+    std::is_base_of<CalibrationBase, CalibrationType>::value &&
+    std::is_base_of<GuidanceBase, GuidanceBase>::value,
+  void>::type
+MultiSensorCalibrationGui::runExtrinsicCalibration()
+{
+    if (!pExecutor_)
+        return;
 
-    // Name of the guidance nodelet instance
-    std::string guidanceName =
-      ros::this_node::getName() + "/" + multisensor_calibration::GUIDANCE_SUB_NAMESPACE;
+    std::vector<rclcpp::Parameter> parameterVector = {};
 
-    //--- set parameters for calibration nodelet
+    //--- set parameters for calibration node
     for (auto opt : pCalibConfigDialog_->getBoolTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
+        parameterVector.push_back(rclcpp::Parameter(opt.first, opt.second));
     for (auto opt : pCalibConfigDialog_->getDoubleTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
+        parameterVector.push_back(rclcpp::Parameter(opt.first, opt.second));
     for (auto opt : pCalibConfigDialog_->getIntTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
+        parameterVector.push_back(rclcpp::Parameter(opt.first, opt.second));
     for (auto opt : pCalibConfigDialog_->getStringTypedCalibrationOptions())
-        ros::param::set(calibratorName + "/" + opt.first, opt.second);
+        parameterVector.push_back(rclcpp::Parameter(opt.first, opt.second));
 
-    //--- Load nodelets
-    pNodeletLoader_->load(calibratorName,
-                          "multisensor_calibration/ExtrinsicLidarReferenceCalibrationNodelet", {}, {});
-    pNodeletLoader_->load(guidanceName,
-                          "multisensor_calibration/GuidedLidarLidarTargetPlacementNodelet", {}, {});
+    auto options = rclcpp::NodeOptions(nodeOptions_);
+    options.parameter_overrides(parameterVector);
+    options.use_intra_process_comms(true);
+#ifdef MULTI_THREADED
+    guidanceThread_ = std::thread(
+      [](rclcpp::NodeOptions options, std::string appTitle)
+      {
+          auto guidanceNode = std::make_shared<GuidanceType>(appTitle, options);
+          rclcpp::spin(guidanceNode);
+      },
+      options, appTitle_);
+
+    calibrationThread_ = std::thread(
+      [](rclcpp::NodeOptions options, std::string appTitle)
+      {
+          auto calibrationNode = std::make_shared<CalibrationType>(appTitle, options);
+          rclcpp::spin(calibrationNode);
+      },
+      options, appTitle_);
+
+#else
+    auto pGuidance    = std::make_shared<GuidanceType>(appTitle_, options);
+    auto pCalibration = std::make_shared<CalibrationType>(appTitle_, options);
+    pExecutor_->add_node(pGuidance);
+    pExecutor_->add_node(pCalibration);
+    pGuidance_    = pGuidance;
+    pCalibration_ = pCalibration;
+#endif
 
     //--- load gui
-    pCalibrationGui_.reset(
-      new LidarReferenceCalibrationGui(appTitle_, multisensor_calibration::GUI_SUB_NAMESPACE));
-
-    pCalibrationGui_->setNodeletLoaderPtr(pNodeletLoader_);
-    pCalibrationGui_->init();
+    pCalibrationGui_ = std::make_shared<GuiType>(appTitle_, multisensor_calibration::GUI_SUB_NAMESPACE);
+    pCalibrationGui_->init(pExecutor_, nodeOptions_);
 }
 
 //==================================================================================================

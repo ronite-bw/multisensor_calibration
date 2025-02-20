@@ -1,42 +1,28 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+/***********************************************************************
+ *
+ *   Copyright (c) 2022 - 2024 Fraunhofer Institute of Optronics,
+ *   System Technologies and Image Exploitation IOSB
+ *
+ **********************************************************************/
 
-#include "multisensor_calibration/calibration/Extrinsic2d3dCalibrationBase.h"
+#include "../../include/multisensor_calibration/calibration/Extrinsic2d3dCalibrationBase.h"
 
 // Std
 #include <thread>
 #include <vector>
 
+// ROS
+#include <tf2/LinearMath/Transform.h>
+
 // multisensor_calibration
-#include "multisensor_calibration/common/utils.hpp"
+#include "../../include/multisensor_calibration/common/utils.hpp"
+#include "../../include/multisensor_calibration/sensor_data_processing/LidarDataProcessor.h"
+#include "../../include/multisensor_calibration/sensor_data_processing/ReferenceDataProcessor3d.h"
 
 namespace multisensor_calibration
 {
+
+using namespace utils;
 
 //==================================================================================================
 template <class SrcDataProcessorT, class RefDataProcessorT>
@@ -68,15 +54,15 @@ void Extrinsic2d3dCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
 {
     calibResult_.calibrations.resize(4);
 
-    tf::Matrix3x3 leftRectMat =
-      tf::Matrix3x3(leftCameraInfo_.R[0], leftCameraInfo_.R[1], leftCameraInfo_.R[2],
-                    leftCameraInfo_.R[3], leftCameraInfo_.R[4], leftCameraInfo_.R[5],
-                    leftCameraInfo_.R[6], leftCameraInfo_.R[7], leftCameraInfo_.R[8]);
+    tf2::Matrix3x3 leftRectMat =
+      tf2::Matrix3x3(leftCameraInfo_.r[0], leftCameraInfo_.r[1], leftCameraInfo_.r[2],
+                     leftCameraInfo_.r[3], leftCameraInfo_.r[4], leftCameraInfo_.r[5],
+                     leftCameraInfo_.r[6], leftCameraInfo_.r[7], leftCameraInfo_.r[8]);
 
-    tf::Matrix3x3 rightRectMat =
-      tf::Matrix3x3(rightCameraInfo_.R[0], rightCameraInfo_.R[1], rightCameraInfo_.R[2],
-                    rightCameraInfo_.R[3], rightCameraInfo_.R[4], rightCameraInfo_.R[5],
-                    rightCameraInfo_.R[6], rightCameraInfo_.R[7], rightCameraInfo_.R[8]);
+    tf2::Matrix3x3 rightRectMat =
+      tf2::Matrix3x3(rightCameraInfo_.r[0], rightCameraInfo_.r[1], rightCameraInfo_.r[2],
+                     rightCameraInfo_.r[3], rightCameraInfo_.r[4], rightCameraInfo_.r[5],
+                     rightCameraInfo_.r[6], rightCameraInfo_.r[7], rightCameraInfo_.r[8]);
 
     double roll, pitch, yaw;
 
@@ -97,10 +83,10 @@ void Extrinsic2d3dCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
           calibResult_.calibrations[0].srcFrameId;
         calibResult_.calibrations[1].baseFrameId = "";
 
-        calibResult_.calibrations[1].XYZ = tf::Vector3(0.f, 0.f, 0.f);
+        calibResult_.calibrations[1].XYZ = tf2::Vector3(0.f, 0.f, 0.f);
 
         leftRectMat.transpose().getRPY(roll, pitch, yaw);
-        calibResult_.calibrations[1].RPY = tf::Vector3(roll, pitch, yaw);
+        calibResult_.calibrations[1].RPY = tf2::Vector3(roll, pitch, yaw);
     }
     //--- if image state is STEREO_RECTIFIED, calculate position of frame of left distorted image
     //--- the distorted frame is at the same position as the rectified frame, but rotated by the
@@ -125,10 +111,10 @@ void Extrinsic2d3dCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
         calibResult_.calibrations[0].refFrameId =
           calibResult_.calibrations[1].srcFrameId;
 
-        calibResult_.calibrations[0].XYZ = tf::Vector3(0.f, 0.f, 0.f);
+        calibResult_.calibrations[0].XYZ = tf2::Vector3(0.f, 0.f, 0.f);
 
         leftRectMat.getRPY(roll, pitch, yaw);
-        calibResult_.calibrations[0].RPY = tf::Vector3(roll, pitch, yaw);
+        calibResult_.calibrations[0].RPY = tf2::Vector3(roll, pitch, yaw);
     }
 
     //--- calculate pose of right rectified camera from left rectified camera
@@ -149,9 +135,9 @@ void Extrinsic2d3dCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
     calibResult_.calibrations[3].baseFrameId = "";
 
     calibResult_.calibrations[3].XYZ =
-      tf::Vector3((-rightCameraInfo_.P[3] / rightCameraInfo_.P[0]), 0.f, 0.f);
+      tf2::Vector3((-rightCameraInfo_.p[3] / rightCameraInfo_.p[0]), 0.f, 0.f);
 
-    calibResult_.calibrations[3].RPY = tf::Vector3(0.f, 0.f, 0.f);
+    calibResult_.calibrations[3].RPY = tf2::Vector3(0.f, 0.f, 0.f);
 
     //--- calculate pose of right undistorted camera from right rectified camera
     //--- the distorted frame is at the same position as the rectified frame, but rotated by the
@@ -171,10 +157,10 @@ void Extrinsic2d3dCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
       calibResult_.calibrations[3].srcFrameId;
     calibResult_.calibrations[2].baseFrameId = "";
 
-    calibResult_.calibrations[2].XYZ = tf::Vector3(0.f, 0.f, 0.f);
+    calibResult_.calibrations[2].XYZ = tf2::Vector3(0.f, 0.f, 0.f);
 
     rightRectMat.getRPY(roll, pitch, yaw);
-    calibResult_.calibrations[2].RPY = tf::Vector3(roll, pitch, yaw);
+    calibResult_.calibrations[2].RPY = tf2::Vector3(roll, pitch, yaw);
 }
 
 //==================================================================================================
@@ -250,54 +236,66 @@ template <class SrcDataProcessorT, class RefDataProcessorT>
 bool Extrinsic2d3dCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
   initializeCameraIntrinsics(CameraDataProcessor* iopCamProcessor)
 {
-    // pointer to camera info message
-    sensor_msgs::CameraInfoConstPtr camInfo =
-      ros::topic::waitForMessage<sensor_msgs::CameraInfo>(cameraInfoTopic_,
-                                                          ros::Duration(20, 0));
-    if (camInfo != nullptr)
+    if (leftCameraInfo_.width != 0)
     {
-        // ROS_INFO("frame_id %s", camInfo->header.frame_id.c_str());
-
         lib3d::Intrinsics cameraIntr;
-        utils::setCameraIntrinsicsFromCameraInfo(*camInfo.get(),
-                                                 cameraIntr,
-                                                 imageState_);
+        setCameraIntrinsicsFromCameraInfo(leftCameraInfo_,
+                                          cameraIntr,
+                                          imageState_);
         iopCamProcessor->setCameraIntrinsics(cameraIntr);
 
-        //--- if camera is to be calibrated as stereo, store camera info in member variable
-        //--- and wait for camera info of right camera
-        if (isStereoCamera_)
-        {
-            sensor_msgs::CameraInfoConstPtr rightCamInfo =
-              ros::topic::waitForMessage<sensor_msgs::CameraInfo>(rightCameraInfoTopic_,
-                                                                  ros::Duration(20, 0));
-
-            if (rightCamInfo != nullptr)
-            {
-                leftCameraInfo_  = *camInfo;
-                rightCameraInfo_ = *rightCamInfo;
-            }
-            else
-            {
-                ROS_ERROR("[%s] Wait for message of 'camera_info' topic for right camera has "
-                          "timed out. "
-                          "\n'camera_info' topic: %s"
-                          "\nWaiting for next data package.",
-                          CalibrationBase::nodeletName_.c_str(), rightCameraInfoTopic_.c_str());
-                return false;
-            }
-        }
+        return true;
     }
     else
     {
-        ROS_ERROR("[%s] Wait for message of 'camera_info' topic has timed out. "
-                  "\n'camera_info' topic: %s"
-                  "\nWaiting for next data package.",
-                  CalibrationBase::nodeletName_.c_str(), cameraInfoTopic_.c_str());
+        RCLCPP_ERROR(CalibrationBase::logger_,
+                     "Wait for message of 'camera_info' topic has timed out. "
+                     "\n'camera_info' topic: %s"
+                     "\nWaiting for next data package.",
+                     cameraInfoTopic_.c_str());
         return false;
+    }
+}
+
+//==================================================================================================
+template <class SrcDataProcessorT, class RefDataProcessorT>
+bool Extrinsic2d3dCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
+  initializeSubscribers(rclcpp::Node* ipNode)
+{
+    //--- left camera info message
+    pLeftCamInfoSubsc_ = ipNode->create_subscription<sensor_msgs::msg::CameraInfo>(
+      cameraInfoTopic_, 1,
+      std::bind(&Extrinsic2d3dCalibrationBase::onLeftCameraInfoReceived, this,
+                std::placeholders::_1));
+
+    //--- left camera info message
+    if (!rightCameraInfoTopic_.empty())
+    {
+        pRightCamInfoSubsc_ = ipNode->create_subscription<sensor_msgs::msg::CameraInfo>(
+          rightCameraInfoTopic_, 1,
+          std::bind(&Extrinsic2d3dCalibrationBase::onRightCameraInfoReceived, this,
+                    std::placeholders::_1));
     }
 
     return true;
+}
+
+//==================================================================================================
+template <class SrcDataProcessorT, class RefDataProcessorT>
+void Extrinsic2d3dCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
+  onLeftCameraInfoReceived(const sensor_msgs::msg::CameraInfo::SharedPtr pCamInfo)
+{
+    if (leftCameraInfo_.width != pCamInfo->width)
+        leftCameraInfo_ = *pCamInfo;
+}
+
+//==================================================================================================
+template <class SrcDataProcessorT, class RefDataProcessorT>
+void Extrinsic2d3dCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
+  onRightCameraInfoReceived(const sensor_msgs::msg::CameraInfo::SharedPtr pCamInfo)
+{
+    if (rightCameraInfo_.width != pCamInfo->width)
+        rightCameraInfo_ = *pCamInfo;
 }
 
 //==================================================================================================
@@ -350,56 +348,139 @@ bool Extrinsic2d3dCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
 
 //==================================================================================================
 template <class SrcDataProcessorT, class RefDataProcessorT>
+void Extrinsic2d3dCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::setupLaunchParameters(
+  rclcpp::Node* ipNode) const
+{
+    ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::setupLaunchParameters(ipNode);
+
+    //--- camera sensor name
+    auto cameraSensorNameDesc = rcl_interfaces::msg::ParameterDescriptor{};
+    cameraSensorNameDesc.description =
+      "Name of the camera sensor that is to be calibrated.\n"
+      "Default: \"camera\"";
+    cameraSensorNameDesc.read_only = true;
+    ipNode->declare_parameter<std::string>("camera_sensor_name", DEFAULT_CAMERA_SENSOR_NAME,
+                                           cameraSensorNameDesc);
+
+    //--- camera image topic
+    auto cameraImageTopicDesc = rcl_interfaces::msg::ParameterDescriptor{};
+    cameraImageTopicDesc.description =
+      "Topic name of the corresponding camera images.\n"
+      "Default: \"/camera/image_color\"";
+    cameraImageTopicDesc.read_only = true;
+    ipNode->declare_parameter<std::string>("camera_image_topic", DEFAULT_CAMERA_IMAGE_TOPIC,
+                                           cameraImageTopicDesc);
+
+    //--- camera info topic
+    auto cameraInfoTopicDesc = rcl_interfaces::msg::ParameterDescriptor{};
+    cameraInfoTopicDesc.description =
+      "Name of the camera info topic. If this parameter is left empty the camera info topic name is "
+      "constructed from the specified ```camera_image_topic```.\n "
+      "Default: \"\"";
+    cameraInfoTopicDesc.read_only = true;
+    ipNode->declare_parameter<std::string>("camera_info_topic", "",
+                                           cameraInfoTopicDesc);
+
+    //--- image state
+    auto imageStateDesc = rcl_interfaces::msg::ParameterDescriptor{};
+    imageStateDesc.description =
+      "State of the camera images used.\n"
+      "Default: \"DISTORTED\"";
+    imageStateDesc.read_only = true;
+    ipNode->declare_parameter<std::string>("image_state", DEFAULT_IMG_STATE_STR,
+                                           imageStateDesc);
+
+    //--- is stereo camera
+    auto isStereoCameraDesc = rcl_interfaces::msg::ParameterDescriptor{};
+    isStereoCameraDesc.description =
+      "Set to true, if camera is to be calibrated as stereo camera. "
+      "If set to true, ```right_camera_sensor_name``` and ```right_camera_info_topic``` "
+      "also need to be set.\n"
+      "Default: false";
+    isStereoCameraDesc.read_only = true;
+    ipNode->declare_parameter<bool>("is_stereo_camera", false, isStereoCameraDesc);
+
+    //--- right camera sensor name
+    auto rightCameraNameDesc = rcl_interfaces::msg::ParameterDescriptor{};
+    rightCameraNameDesc.description =
+      "Name of the right camera sensor when the camera is to be "
+      "calibrated as a stereo camera system. Required if ```is_stereo_camera == true```.\n"
+      "Default: \"\"";
+    rightCameraNameDesc.read_only = true;
+    ipNode->declare_parameter<std::string>("right_camera_sensor_name", "", rightCameraNameDesc);
+
+    //--- right camera info topic
+    auto rightCameraInfoDesc = rcl_interfaces::msg::ParameterDescriptor{};
+    rightCameraInfoDesc.description =
+      "Topic name of the camera info corresponding to the right camera. "
+      "This is needed when the camera is to be calibrated as a stereo camera system. "
+      "Required if ```is_stereo_camera == true```.\n"
+      "Default: \"\"";
+    rightCameraInfoDesc.read_only = true;
+    ipNode->declare_parameter<std::string>("right_camera_info_topic", "", rightCameraInfoDesc);
+
+    //--- rect suffix
+    auto rectSuffixDesc = rcl_interfaces::msg::ParameterDescriptor{};
+    rectSuffixDesc.description =
+      "Suffix of the of the right sensor name as well as the frame id for the "
+      "rectified images. If the ```image_state``` of the input images is DISTORTED or UNDISTORTED "
+      "this is added to the rectified frame id. If the imageState_ is STEREO_RECTIFIED this is "
+      "removed from the frame id. "
+      "Default: \"_rect\"";
+    rectSuffixDesc.read_only = true;
+    ipNode->declare_parameter<std::string>("rect_suffix", "_rect", rectSuffixDesc);
+}
+
+//==================================================================================================
+template <class SrcDataProcessorT, class RefDataProcessorT>
 bool Extrinsic2d3dCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
-  readLaunchParameters(const ros::NodeHandle& iNh)
+  readLaunchParameters(const rclcpp::Node* ipNode)
 {
     if (!ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
-          readLaunchParameters(iNh))
+          readLaunchParameters(ipNode))
         return false;
 
     //--- camera_sensor_name
     cameraSensorName_ =
-      CalibrationBase::readStringLaunchParameter(iNh, "camera_sensor_name",
+      CalibrationBase::readStringLaunchParameter(ipNode, "camera_sensor_name",
                                                  DEFAULT_CAMERA_SENSOR_NAME);
 
     //--- camera_image_topic
     cameraImageTopic_ =
-      CalibrationBase::readStringLaunchParameter(iNh, "camera_image_topic",
+      CalibrationBase::readStringLaunchParameter(ipNode, "camera_image_topic",
                                                  DEFAULT_CAMERA_IMAGE_TOPIC);
 
     //--- camera_info_topic
-    cameraInfoTopic_ = iNh.param<std::string>("camera_info_topic", "");
+    cameraInfoTopic_ = ipNode->get_parameter("camera_info_topic").as_string();
     if (cameraInfoTopic_.empty())
     {
         cameraInfoTopic_ =
           cameraImageTopic_.substr(0, cameraImageTopic_.find_last_of('/')) + "/camera_info";
     }
-    // ROS_INFO("cam info %s", cameraInfoTopic_.c_str());
 
     //--- image state
-    std::string imageStateStr;
-    iNh.param<std::string>("image_state", imageStateStr, DEFAULT_IMG_STATE_STR);
+    std::string imageStateStr =
+      CalibrationBase::readStringLaunchParameter(ipNode, "image_state",
+                                                 DEFAULT_IMG_STATE_STR);
     auto findItr = STR_2_IMG_STATE.find(imageStateStr);
     if (findItr != STR_2_IMG_STATE.end())
         imageState_ = findItr->second;
     else
-        ROS_WARN("[%s]"
-                 "\n\t> String passed to 'image_state' is not valid. "
-                 "\n\t> Setting 'image_state' to default: %s",
-                 CalibrationBase::nodeletName_.c_str(),
-                 DEFAULT_IMG_STATE_STR.c_str());
+        RCLCPP_WARN(CalibrationBase::logger_, "String passed to 'image_state' is not valid. "
+                                              "\nSetting 'image_state' to default: %s",
+                    DEFAULT_IMG_STATE_STR.c_str());
 
     //--- is_stereo_camera
-    iNh.param<bool>("is_stereo_camera", isStereoCamera_, false);
+    isStereoCamera_ = ipNode->get_parameter("is_stereo_camera").as_bool();
 
     //--- right_camera_sensor_name
-    rightCameraSensorName_ = iNh.param<std::string>("right_camera_sensor_name", "");
+    rightCameraSensorName_ = ipNode->get_parameter("right_camera_sensor_name").as_string();
 
     //--- right_camera_info_topic
-    rightCameraInfoTopic_ = iNh.param<std::string>("right_camera_info_topic", "");
+    rightCameraInfoTopic_ = ipNode->get_parameter("right_camera_info_topic").as_string();
 
     //--- rect_suffix
-    rectSuffix_ = CalibrationBase::readStringLaunchParameter(iNh, "rect_suffix",
+    rectSuffix_ = CalibrationBase::readStringLaunchParameter(ipNode, "rect_suffix",
                                                              "_rect");
 
     return true;

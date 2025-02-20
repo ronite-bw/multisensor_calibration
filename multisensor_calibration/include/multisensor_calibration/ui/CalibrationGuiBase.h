@@ -34,9 +34,8 @@
 #include <string>
 
 // ROS
-#include <nodelet/loader.h>
-#include <ros/ros.h>
-#include <ros/subscriber.h>
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp/subscription.hpp>
 
 // Qt
 #include <QLabel>
@@ -50,7 +49,9 @@
 #include "../common/common.h"
 #include "CalibrationControlWindow.h"
 #include "GuiBase.h"
-#include <multisensor_calibration/CalibrationMetaData.h>
+#include <multisensor_calibration_interface/srv/calibration_meta_data.hpp>
+
+namespace interf = multisensor_calibration_interface;
 
 namespace multisensor_calibration
 {
@@ -86,24 +87,19 @@ class CalibrationGuiBase : public GuiBase
     virtual ~CalibrationGuiBase();
 
     /**
-     * @brief Get the name of the calibrator nodelet.
+     * @brief Get the name of the calibrator node.
      *
      */
-    std::string getCalibratorNodeletName() const;
+    std::string getCalibratorNodeName() const;
 
     /**
-     * @brief Method to call the initialization routine. At the end of the routine the spin timer
-     * is started to start the ROS spin loop.
-     */
-    void init() override;
-
-    /**
-     * @brief Method to set pointer to nodelet loader.
+     * @brief Method to call the initialization routine.
      *
-     * @note This will not acquire ownership, thus the instance of the loader needs to be deleted
-     * outside.
+     * @param[in] ipExec Pointer to executor.
+     * @param[in] iNodeOpts Options for ros node wihtin gui.
      */
-    void setNodeletLoaderPtr(std::shared_ptr<nodelet::Loader>& ipLoader) override;
+    bool init(const std::shared_ptr<rclcpp::Executor>& ipExec,
+              const rclcpp::NodeOptions& iNodeOpts = rclcpp::NodeOptions()) override;
 
     /**
      * @brief Hide progress dialog and mark UI as ready.
@@ -135,7 +131,7 @@ class CalibrationGuiBase : public GuiBase
      *
      * @return True, if all settings are valid. False, otherwise.
      */
-    virtual bool initializeSubscribers(ros::NodeHandle& ioNh);
+    virtual bool initializeSubscribers(rclcpp::Node* ipNode);
 
     /**
      * @brief Pure virtual method to load visualizer.
@@ -147,13 +143,14 @@ class CalibrationGuiBase : public GuiBase
      *
      * @param[in] ipResultMsg Calibration result message.
      */
-    virtual void onCalibrationResultReceived(const CalibrationResult_Message_T::ConstPtr& ipResultMsg);
+    virtual void onCalibrationResultReceived(
+      const CalibrationResult_Message_T::ConstSharedPtr& ipResultMsg);
 
     /**
      * @brief Callback function to handle log messages subscribed to by logSubsc_
      *
      */
-    void onLogMessageReceived(const rosgraph_msgs::Log::ConstPtr pLogMsg);
+    void onLogMessageReceived(const rcl_interfaces::msg::Log::ConstSharedPtr pLogMsg);
 
     /**
      * @brief Method to setup gui elements.
@@ -218,22 +215,22 @@ class CalibrationGuiBase : public GuiBase
 
   protected:
     /// Subscriber to log messages.
-    ros::Subscriber logSubsc_;
+    rclcpp::Subscription<rcl_interfaces::msg::Log>::SharedPtr pLogSubsc_;
 
     /// Subscriber to calibration result messages.
-    ros::Subscriber calibResultSubsc_;
+    rclcpp::Subscription<CalibrationResult_Message_T>::SharedPtr pCalibResultSubsc_;
 
-    /// Name of the calibrator nodelet
-    std::string calibratorNodeletName_;
+    /// Name of the calibrator node
+    std::string calibratorNodeName_;
 
-    /// Name of the guidance nodelet
-    std::string guidanceNodeletName_;
+    /// Name of the guidance node
+    std::string guidanceNodeName_;
 
-    /// Name of the nodelet to fuse the data and visualize calibration
-    std::string visualizerNodeletName_;
+    /// Name of the node to fuse the data and visualize calibration
+    std::string visualizerNodeName_;
 
     /// Member variable holding calibration meta data.
-    multisensor_calibration::CalibrationMetaDataResponse calibrationMetaData_;
+    std::shared_ptr<interf::srv::CalibrationMetaData::Response> pCalibrationMetaData_;
 
     /// QTimer object to trigger service call to get calibration meta data. This needs to be a QTimer,
     /// since the event loop runs in Qt.

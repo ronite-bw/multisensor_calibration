@@ -1,30 +1,9 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+/***********************************************************************
+ *
+ *   Copyright (c) 2022 - 2024 Fraunhofer Institute of Optronics,
+ *   System Technologies and Image Exploitation IOSB
+ *
+ **********************************************************************/
 
 #include "../include/multisensor_calibration/ui/CalibrationGuiBase.h"
 
@@ -45,17 +24,21 @@
 #include <QUrl>
 
 // ROS
-#include <ros/service_client.h>
+#include <rclcpp/client.hpp>
+#include <rclcpp/service.hpp>
 
 // multisensor_calibration
-#include "../include/multisensor_calibration/common/common.h"
-#include "../include/multisensor_calibration/data_processing/DataProcessor3d.h"
+#include "../../include/multisensor_calibration/common/common.h"
+#include "../../include/multisensor_calibration/sensor_data_processing/DataProcessor3d.h"
 #include "ui_CalibrationControlWindow.h"
-#include <multisensor_calibration/CaptureCalibTarget.h>
-#include <multisensor_calibration/FinalizeCalibration.h>
-#include <multisensor_calibration/ImportMarkerObservations.h>
-#include <multisensor_calibration/RemoveLastObservation.h>
-#include <multisensor_calibration/ResetCalibration.h>
+#include <multisensor_calibration/common/utils.hpp>
+#include <multisensor_calibration_interface/srv/capture_calib_target.hpp>
+#include <multisensor_calibration_interface/srv/finalize_calibration.hpp>
+#include <multisensor_calibration_interface/srv/import_marker_observations.hpp>
+#include <multisensor_calibration_interface/srv/remove_last_observation.hpp>
+#include <multisensor_calibration_interface/srv/reset_calibration.hpp>
+
+using namespace std::chrono_literals;
 
 namespace multisensor_calibration
 {
@@ -64,9 +47,9 @@ namespace multisensor_calibration
 CalibrationGuiBase::CalibrationGuiBase(const std::string& iAppTitle,
                                        const std::string& iGuiSubNamespace) :
   GuiBase(iAppTitle, iGuiSubNamespace),
-  calibratorNodeletName_(""),
-  guidanceNodeletName_(""),
-  visualizerNodeletName_(""),
+  calibratorNodeName_(""),
+  guidanceNodeName_(""),
+  visualizerNodeName_(""),
   pCalibControlWindow_(nullptr),
   pProgressDialog_(nullptr),
   pRqtReconfigureProcess_(nullptr)
@@ -83,23 +66,25 @@ CalibrationGuiBase::~CalibrationGuiBase()
 }
 
 //==================================================================================================
-std::string CalibrationGuiBase::getCalibratorNodeletName() const
+std::string CalibrationGuiBase::getCalibratorNodeName() const
 {
-    return calibratorNodeletName_;
+    return calibratorNodeName_;
 }
 
 //==================================================================================================
-void CalibrationGuiBase::init()
+bool CalibrationGuiBase::init(const std::shared_ptr<rclcpp::Executor>& ipExec,
+                              const rclcpp::NodeOptions& iNodeOpts)
 {
-    GuiBase::init();
+    if (!GuiBase::init(ipExec, iNodeOpts))
+        return false;
 
     //--- set component names
-    calibratorNodeletName_ = appTitle_ + "/" + CALIBRATOR_SUB_NAMESPACE;
-    guidanceNodeletName_   = appTitle_ + "/" + GUIDANCE_SUB_NAMESPACE;
-    visualizerNodeletName_ = appTitle_ + "/" + VISUALIZER_SUB_NAMESPACE;
+    calibratorNodeName_ = appTitle_;
+    guidanceNodeName_   = appTitle_ + "_" + GUIDANCE_SUB_NAMESPACE;
+    visualizerNodeName_ = appTitle_ + "_" + VISUALIZER_SUB_NAMESPACE;
 
     //--- initialize subscribers
-    isInitialized_ &= initializeSubscribers(nh_);
+    isInitialized_ &= initializeSubscribers(pNode_.get());
 
     //--- setup GUI
     isInitialized_ &= setupGuiElements();
@@ -109,15 +94,12 @@ void CalibrationGuiBase::init()
     {
         calibMetaDataTimer_.start();
     }
-}
 
-//==================================================================================================
-void CalibrationGuiBase::setNodeletLoaderPtr(std::shared_ptr<nodelet::Loader>& ipLoader)
-{
-    GuiBase::setNodeletLoaderPtr(ipLoader);
-
+    //--- activate visualization push button in gui
     if (pCalibControlWindow_)
-        pCalibControlWindow_->pbVisCalibrationPtr()->setEnabled((pNodeletLoader_ != nullptr));
+        pCalibControlWindow_->pbVisCalibrationPtr()->setEnabled((pExecutor_ != nullptr));
+
+    return true;
 }
 
 //==================================================================================================
@@ -129,6 +111,7 @@ void CalibrationGuiBase::hideProgressDialog()
     //--- update progress dialog
     if (pProgressDialog_)
         pProgressDialog_->reset();
+    QApplication::processEvents();
 }
 
 //==================================================================================================
@@ -159,36 +142,36 @@ void CalibrationGuiBase::initializeGuiContents()
 
     //--- only add importation for source sensor if it is not a camera sensor, as this is currently
     //--- not implemented.
-    if (calibrationMetaData_.calib_type != static_cast<int>(EXTRINSIC_CAMERA_LIDAR_CALIBRATION) &&
-        calibrationMetaData_.calib_type != static_cast<int>(EXTRINSIC_CAMERA_REFERENCE_CALIBRATION))
+    if (pCalibrationMetaData_->calib_type != static_cast<int>(EXTRINSIC_CAMERA_LIDAR_CALIBRATION) &&
+        pCalibrationMetaData_->calib_type != static_cast<int>(EXTRINSIC_CAMERA_REFERENCE_CALIBRATION))
     {
-        addImportAction(calibrationMetaData_.src_sensor_name);
+        addImportAction(pCalibrationMetaData_->src_sensor_name);
     }
 
-    addImportAction(calibrationMetaData_.ref_sensor_name);
+    addImportAction(pCalibrationMetaData_->ref_sensor_name);
 
     pCalibControlWindow_->actionImportObservationPtr()->setMenu(pImportObsSubMenu);
 }
 
 //==================================================================================================
-bool CalibrationGuiBase::initializeSubscribers(ros::NodeHandle& ioNh)
+bool CalibrationGuiBase::initializeSubscribers(rclcpp::Node* ipNode)
 {
     //--- subscribe to log messages
-    logSubsc_ = ioNh.subscribe<rosgraph_msgs::Log>(
+    pLogSubsc_ = ipNode->create_subscription<rcl_interfaces::msg::Log>(
       "/rosout", 10,
-      boost::bind(&CalibrationGuiBase::onLogMessageReceived, this, _1));
+      std::bind(&CalibrationGuiBase::onLogMessageReceived, this, std::placeholders::_1));
 
     //--- subscriber to calib result
-    calibResultSubsc_ = ioNh.subscribe<CalibrationResult_Message_T>(
-      calibratorNodeletName_ + "/" + CALIB_RESULT_TOPIC_NAME, 1,
-      boost::bind(&CalibrationGuiBase::onCalibrationResultReceived, this, _1));
+    pCalibResultSubsc_ = ipNode->create_subscription<CalibrationResult_Message_T>(
+      calibratorNodeName_ + "/" + CALIB_RESULT_TOPIC_NAME, 1,
+      std::bind(&CalibrationGuiBase::onCalibrationResultReceived, this, std::placeholders::_1));
 
     return true;
 }
 
 //==================================================================================================
 void CalibrationGuiBase::onCalibrationResultReceived(
-  const CalibrationResult_Message_T::ConstPtr& ipResultMsg)
+  const CalibrationResult_Message_T::ConstSharedPtr& ipResultMsg)
 {
     UNUSED_VAR(ipResultMsg);
 
@@ -196,16 +179,19 @@ void CalibrationGuiBase::onCalibrationResultReceived(
 }
 
 //==================================================================================================
-void CalibrationGuiBase::onLogMessageReceived(const rosgraph_msgs::Log::ConstPtr pLogMsg)
+void CalibrationGuiBase::onLogMessageReceived(
+  const rcl_interfaces::msg::Log::ConstSharedPtr pLogMsg)
 {
     //--- if name does not equal appTitle_, i.e. if the log message is from another process, return
-    if (pLogMsg->name != appTitle_)
+    if (pLogMsg->name.find(appTitle_) == std::string::npos)
         return;
 
     //--- print log message in text box of calibration control window
     if (pCalibControlWindow_)
         pCalibControlWindow_->printLogMessage(pLogMsg);
 
+    if (pLogMsg->level < rcl_interfaces::msg::Log::WARN)
+        return;
     //--- strip new line of message in order to prepare for regex match
     std::string newlineStripedMsgStr = pLogMsg->msg;
     newlineStripedMsgStr.erase(std::remove(newlineStripedMsgStr.begin(),
@@ -215,8 +201,7 @@ void CalibrationGuiBase::onLogMessageReceived(const rosgraph_msgs::Log::ConstPtr
 
     //--- if log level is higher than WARN and if log message begins with "[<appTitle_>...]",
     //--- additionally print message in QMessagePox
-    if (pLogMsg->level >= rosgraph_msgs::Log::WARN &&
-        std::regex_match(newlineStripedMsgStr, std::regex("(\\[" + appTitle_ + "(.*)\\])(.*)")))
+    if (std::regex_match(newlineStripedMsgStr, std::regex("(\\[" + appTitle_ + "(.*)\\])(.*)")))
     {
         //--- strip message from leading '[...]'
         QString strippedMsg = QString::fromStdString(
@@ -225,21 +210,21 @@ void CalibrationGuiBase::onLogMessageReceived(const rosgraph_msgs::Log::ConstPtr
         switch (pLogMsg->level)
         {
         default:
-        case rosgraph_msgs::Log::WARN:
+        case rcl_interfaces::msg::Log::WARN:
         {
             QMessageBox::information(pCalibControlWindow_.get(), pCalibControlWindow_->windowTitle(),
                                      strippedMsg);
         }
         break;
 
-        case rosgraph_msgs::Log::ERROR:
+        case rcl_interfaces::msg::Log::ERROR:
         {
             QMessageBox::warning(pCalibControlWindow_.get(), pCalibControlWindow_->windowTitle(),
                                  strippedMsg);
         }
         break;
 
-        case rosgraph_msgs::Log::FATAL:
+        case rcl_interfaces::msg::Log::FATAL:
         {
             QMessageBox::critical(pCalibControlWindow_.get(), pCalibControlWindow_->windowTitle(),
                                   strippedMsg);
@@ -262,10 +247,10 @@ bool CalibrationGuiBase::setupGuiElements()
     //--- CalibrationControlWindow at the Top-Left Corner of Display
     pCalibControlWindow_ = std::make_shared<CalibrationControlWindow>();
     pCalibControlWindow_->setWindowTitle(QString::fromStdString(appTitle_.substr(1)));
-    pCalibControlWindow_->move(0, 0);
+    pCalibControlWindow_->move(screenGeometry_.topLeft());
     pCalibControlWindow_->setFixedSize((screenGeometry_.width() / 2) - 1,
                                        (screenGeometry_.height() / 2) - titleBarHeight_ - 1);
-    pCalibControlWindow_->pbVisCalibrationPtr()->setEnabled((pNodeletLoader_ != nullptr));
+    pCalibControlWindow_->pbVisCalibrationPtr()->setEnabled((pExecutor_ != nullptr));
     pCalibControlWindow_->show();
 
     //--- connect close signals
@@ -314,30 +299,57 @@ void CalibrationGuiBase::showProgressDialog(const QString& iBusyText)
 
     //--- update mouse cursor
     QApplication::setOverrideCursor(Qt::BusyCursor);
+    QApplication::processEvents();
 }
 
 //==================================================================================================
 void CalibrationGuiBase::getCalibrationMetaData()
 {
     //--- get calibration meta data
-    ros::ServiceClient metaDataClient =
-      nh_.serviceClient<CalibrationMetaData>(calibratorNodeletName_ +
-                                             "/" + REQUEST_META_DATA_SRV_NAME);
-    CalibrationMetaData srvMsg;
-    if (!metaDataClient.call(srvMsg))
+    auto pMetaDataClient =
+      pNode_->create_client<interf::srv::CalibrationMetaData>(calibratorNodeName_ +
+                                                              "/" + REQUEST_META_DATA_SRV_NAME);
+
+    bool isServiceAvailable = false;
+    const int MAX_TRIES     = 10;
+    int cntr                = 0;
+
+    while (!isServiceAvailable && cntr < MAX_TRIES)
     {
-        ROS_ERROR_ONCE("[%s] Failed to get calibration meta data. "
-                       "Check if calibration nodelet is initialized!",
-                       guiNodeName_.c_str());
+        isServiceAvailable = pMetaDataClient->wait_for_service(500ms);
+        cntr++;
     }
 
-    calibrationMetaData_ = srvMsg.response;
-
-    //--- if calibration metadata is complete stop timer
-    if (calibrationMetaData_.isComplete)
+    if (isServiceAvailable)
     {
-        calibMetaDataTimer_.stop();
-        initializeGuiContents();
+
+        auto request  = std::make_shared<interf::srv::CalibrationMetaData::Request>();
+        auto response = pMetaDataClient->async_send_request(request);
+
+        if (pExecutor_->spin_until_future_complete(response) ==
+            rclcpp::FutureReturnCode::SUCCESS)
+        {
+            pCalibrationMetaData_ = response.get();
+
+            //--- if calibration metadata is complete stop timer
+            if (pCalibrationMetaData_->is_complete)
+            {
+                calibMetaDataTimer_.stop();
+                initializeGuiContents();
+            }
+        }
+        else
+        {
+            RCLCPP_ERROR(pNode_->get_logger(),
+                         "Failure in getting calibration meta data.\n"
+                         "Check if calibration node is initialized!");
+        }
+    }
+    else
+    {
+        RCLCPP_ERROR(pNode_->get_logger(),
+                     "Service to get calibration meta data is not available.\n"
+                     "Check if calibration node is initialized!");
     }
 }
 
@@ -346,7 +358,7 @@ void CalibrationGuiBase::onActionOpenCalibWsTriggered() const
 {
     QDesktopServices::openUrl(
       QUrl(QString("file://%1")
-             .arg(QString::fromStdString(calibrationMetaData_.calib_ws_path))));
+             .arg(QString::fromStdString(pCalibrationMetaData_->calib_ws_path))));
 }
 
 //==================================================================================================
@@ -354,7 +366,7 @@ void CalibrationGuiBase::onActionOpenRobotWsTriggered() const
 {
     QDesktopServices::openUrl(
       QUrl(QString("file://%1")
-             .arg(QString::fromStdString(calibrationMetaData_.robot_ws_path))));
+             .arg(QString::fromStdString(pCalibrationMetaData_->robot_ws_path))));
 }
 
 //==================================================================================================
@@ -363,8 +375,8 @@ void CalibrationGuiBase::onActionPreferencesTriggered()
     if (!pRqtReconfigureProcess_)
     {
         pRqtReconfigureProcess_ = std::make_shared<QProcess>(this);
-        pRqtReconfigureProcess_->setProgram("rosrun");
-        pRqtReconfigureProcess_->setArguments({"rqt_reconfigure", "rqt_reconfigure"});
+        pRqtReconfigureProcess_->setProgram("ros2");
+        pRqtReconfigureProcess_->setArguments({"run", "rqt_reconfigure", "rqt_reconfigure"});
     }
 
     if (pRqtReconfigureProcess_ && pRqtReconfigureProcess_->state() == QProcess::NotRunning)
@@ -393,37 +405,56 @@ void CalibrationGuiBase::onActionPreferencesTriggered()
 void CalibrationGuiBase::onActionResetCalibTriggered()
 {
     // Function to do service call
-    auto doServiceCall = [&]()
+    auto doServiceCall = [&](const std::string& serviceName)
     {
-        ResetCalibration srvMsg;
-
         //--- call service to reset calibration
-        ros::ServiceClient resetServiceClient =
-          nh_.serviceClient<ResetCalibration>(guidanceNodeletName_ +
-                                              "/" + RESET_SRV_NAME);
-        bool isSuccessful = resetServiceClient.call(srvMsg);
+        auto pResetClient = pNode_->create_client<interf::srv::ResetCalibration>(serviceName);
 
-        resetServiceClient =
-          nh_.serviceClient<ResetCalibration>(calibratorNodeletName_ +
-                                              "/" + RESET_SRV_NAME);
-        isSuccessful &= resetServiceClient.call(srvMsg);
+        bool isServiceAvailable = false;
+        const int MAX_TRIES     = 10;
+        int cntr                = 0;
 
-        if (!isSuccessful)
+        while (!isServiceAvailable && cntr < MAX_TRIES)
         {
-            ROS_ERROR("[%s] Failed to trigger reset of calibration. ",
-                      guiNodeName_.c_str());
+            isServiceAvailable = pResetClient->wait_for_service(500ms);
+            cntr++;
+        }
+
+        if (isServiceAvailable)
+        {
+            auto request  = std::make_shared<interf::srv::ResetCalibration::Request>();
+            auto response = pResetClient->async_send_request(request);
+
+            auto retCode = utils::doWhileWaiting(
+              pExecutor_, response, [&]()
+              { QCoreApplication::processEvents(); },
+              100);
+
+            if (retCode != rclcpp::FutureReturnCode::SUCCESS)
+            {
+                RCLCPP_ERROR(pNode_->get_logger(),
+                             "Failure in calling service '%s'.", serviceName.c_str());
+            }
+            else if (!response.get()->is_accepted)
+            {
+                RCLCPP_ERROR(pNode_->get_logger(),
+                             "Failed to reset (service '%s'). %s",
+                             serviceName.c_str(), response.get()->msg.c_str());
+            }
+        }
+        else
+        {
+            RCLCPP_ERROR(pNode_->get_logger(),
+                         "Service '%s' is not available.", serviceName.c_str());
         }
     };
 
     //--- show progress dialog
     showProgressDialog("Reset calibration ...");
 
-    //--- initialize visualizer asynchronously
-    auto initFuture = std::async(doServiceCall);
-
-    //--- while future is not ready, process QEvents in order for the progress dialog not to freeze
-    while (initFuture.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready)
-        QCoreApplication::processEvents();
+    //--- reset asynchronously
+    doServiceCall(guidanceNodeName_ + "/" + RESET_SRV_NAME);
+    doServiceCall(calibratorNodeName_ + "/" + RESET_SRV_NAME);
 
     pCalibControlWindow_->clearLogMessages();
 
@@ -445,7 +476,7 @@ void CalibrationGuiBase::onActionImportObservationsTriggered()
     QString directoryPath = QFileDialog::getExistingDirectory(
       pCalibControlWindow_.get(),
       QString("Open directory to import observations to '%1'...").arg(sensorName),
-      QString::fromStdString(calibrationMetaData_.calib_ws_path));
+      QString::fromStdString(pCalibrationMetaData_->calib_ws_path));
 
     if (directoryPath.isEmpty())
         return;
@@ -475,7 +506,8 @@ void CalibrationGuiBase::onActionImportObservationsTriggered()
     else
     {
         // service message to import marker observations
-        ImportMarkerObservations importMarkerObsSrvMsg;
+        auto importMarkerObsSrvReq =
+          std::make_shared<interf::srv::ImportMarkerObservations::Request>();
 
         //--- read observation data from individual directories
         for (int i = 1; i <= subdirList.size(); i++)
@@ -498,45 +530,74 @@ void CalibrationGuiBase::onActionImportObservationsTriggered()
                                                             markerIds, markerCorners);
 
             //--- add marker observations to service message
-            MarkerObservations markerObsMsg;
+            interf::msg::MarkerObservations markerObsMsg;
             for (uint j = 0; j < markerIds.size(); j++)
             {
                 markerObsMsg.marker_ids.push_back(markerIds[j]);
 
-                markerObsMsg.marker_top_left_point.push_back(geometry_msgs::Point());
+                markerObsMsg.marker_top_left_point.push_back(geometry_msgs::msg::Point());
                 markerObsMsg.marker_top_left_point.back().x = markerCorners[j][0].x;
                 markerObsMsg.marker_top_left_point.back().y = markerCorners[j][0].y;
                 markerObsMsg.marker_top_left_point.back().z = markerCorners[j][0].z;
             }
 
-            importMarkerObsSrvMsg.request.observation_list.push_back(markerObsMsg);
+            importMarkerObsSrvReq->observation_list.push_back(markerObsMsg);
         }
 
         // Function to do service call
-        auto doServiceCall = [&](ImportMarkerObservations srvMsg)
+        auto doServiceCall = [&](const std::string& serviceName,
+                                 interf::srv::ImportMarkerObservations::Request::SharedPtr request)
         {
-            //--- call service to import observation
-            ros::ServiceClient importObservationsClient =
-              nh_.serviceClient<ImportMarkerObservations>(calibratorNodeletName_ +
-                                                          "/" + sensorName.toStdString() +
-                                                          "/" + IMPORT_MARKER_OBS_SRV_NAME);
+            //--- call service to import marker observations
+            auto pCaptureClient = pNode_->create_client<interf::srv::ImportMarkerObservations>(serviceName);
 
-            if (!importObservationsClient.call(srvMsg))
+            bool isServiceAvailable = false;
+            const int MAX_TRIES     = 10;
+            int cntr                = 0;
+
+            while (!isServiceAvailable && cntr < MAX_TRIES)
             {
-                ROS_ERROR("[%s] Failed to import observations. ",
-                          guiNodeName_.c_str());
+                isServiceAvailable = pCaptureClient->wait_for_service(500ms);
+                cntr++;
+            }
+
+            if (isServiceAvailable)
+            {
+                auto response = pCaptureClient->async_send_request(request);
+
+                auto retCode = utils::doWhileWaiting(
+                  pExecutor_, response, [&]()
+                  { QCoreApplication::processEvents(); },
+                  100);
+
+                if (retCode != rclcpp::FutureReturnCode::SUCCESS)
+                {
+                    RCLCPP_ERROR(pNode_->get_logger(),
+                                 "Failure in calling service '%s'.", serviceName.c_str());
+                }
+                else if (!response.get()->is_accepted)
+                {
+                    RCLCPP_ERROR(pNode_->get_logger(),
+                                 "Failed to import marker observations. %s",
+                                 response.get()->msg.c_str());
+                }
+            }
+            else
+            {
+                RCLCPP_ERROR(pNode_->get_logger(),
+                             "Service '%s' is not available.", serviceName.c_str());
             }
         };
 
         //--- show progress dialog
         showProgressDialog(QString("Import observations to '%1' ...").arg(sensorName));
 
-        //--- initialize visualizer asynchronously
-        auto initFuture = std::async(doServiceCall, importMarkerObsSrvMsg);
-
-        //--- while future is not ready, process QEvents in order for the progress dialog not to freeze
-        while (initFuture.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready)
-            QCoreApplication::processEvents();
+        //--- call service asynchronously
+        doServiceCall(calibratorNodeName_ + "/" +
+                        sensorName.toStdString() +
+                        "/" +
+                        IMPORT_MARKER_OBS_SRV_NAME,
+                      importMarkerObsSrvReq);
 
         hideProgressDialog();
     }
@@ -546,93 +607,164 @@ void CalibrationGuiBase::onActionImportObservationsTriggered()
 void CalibrationGuiBase::onCaptureTargetButtonClicked()
 {
     // Function to do service call
-    auto doServiceCall = [&]()
+    auto doServiceCall = [&](const std::string& serviceName)
     {
         //--- call service to capture target
-        ros::ServiceClient captureTargetClient =
-          nh_.serviceClient<CaptureCalibTarget>(calibratorNodeletName_ +
-                                                "/" + CAPTURE_TARGET_SRV_NAME);
-        CaptureCalibTarget srvMsg;
-        if (!captureTargetClient.call(srvMsg))
+        auto pCaptureClient = pNode_->create_client<interf::srv::CaptureCalibTarget>(serviceName);
+
+        bool isServiceAvailable = false;
+        const int MAX_TRIES     = 10;
+        int cntr                = 0;
+
+        while (!isServiceAvailable && cntr < MAX_TRIES)
         {
-            ROS_ERROR("[%s] Failed to trigger capturing of calibration target. ",
-                      guiNodeName_.c_str());
+            isServiceAvailable = pCaptureClient->wait_for_service(500ms);
+            cntr++;
+        }
+
+        if (isServiceAvailable)
+        {
+            auto request  = std::make_shared<interf::srv::CaptureCalibTarget::Request>();
+            auto response = pCaptureClient->async_send_request(request);
+
+            auto retCode = utils::doWhileWaiting(
+              pExecutor_, response, [&]()
+              { QCoreApplication::processEvents(); },
+              100);
+
+            if (retCode != rclcpp::FutureReturnCode::SUCCESS)
+            {
+                RCLCPP_ERROR(pNode_->get_logger(),
+                             "Failure in calling service '%s'.", serviceName.c_str());
+            }
+            else if (!response.get()->is_accepted)
+            {
+                RCLCPP_ERROR(pNode_->get_logger(),
+                             "Failed to capture target. %s",
+                             response.get()->msg.c_str());
+            }
+        }
+        else
+        {
+            RCLCPP_ERROR(pNode_->get_logger(),
+                         "Service '%s' is not available.", serviceName.c_str());
         }
     };
 
     //--- show progress dialog
     showProgressDialog("Capturing target ...");
 
-    //--- initialize visualizer asynchronously
-    auto initFuture = std::async(doServiceCall);
+    doServiceCall(calibratorNodeName_ + "/" + CAPTURE_TARGET_SRV_NAME);
 
-    //--- while future is not ready, process QEvents in order for the progress dialog not to freeze
-    while (initFuture.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready)
-        QCoreApplication::processEvents();
+    hideProgressDialog();
 }
 
 //==================================================================================================
 void CalibrationGuiBase::onFinalizeCalibrationButtonClicked()
 {
 
-    // Function to do service call
-    auto doServiceCall = [&]()
+    auto doServiceCall = [&](const std::string& serviceName)
     {
         //--- call service to finalize calibration
-        ros::ServiceClient finalizeCalibrationClient =
-          nh_.serviceClient<FinalizeCalibration>(calibratorNodeletName_ +
-                                                 "/" + FINALIZE_CALIBRATION_SRV_NAME);
-        FinalizeCalibration srvMsg;
-        if (!finalizeCalibrationClient.call(srvMsg))
+        auto pFinalizeClient = pNode_->create_client<interf::srv::FinalizeCalibration>(serviceName);
+
+        bool isServiceAvailable = false;
+        const int MAX_TRIES     = 10;
+        int cntr                = 0;
+
+        while (!isServiceAvailable && cntr < MAX_TRIES)
         {
-            ROS_ERROR("[%s] Failed to trigger calibration finalization. ",
-                      guiNodeName_.c_str());
+            isServiceAvailable = pFinalizeClient->wait_for_service(500ms);
+            cntr++;
         }
-        else if (!srvMsg.response.isAccepted)
+
+        if (isServiceAvailable)
         {
-            ROS_ERROR("[%s] Failed to finalize calibration. %s",
-                      guiNodeName_.c_str(), srvMsg.response.msg.c_str());
+            auto request  = std::make_shared<interf::srv::FinalizeCalibration::Request>();
+            auto response = pFinalizeClient->async_send_request(request);
+
+            auto retCode = utils::doWhileWaiting(pExecutor_, response, [&]()
+                                                 { QCoreApplication::processEvents(); }, 100);
+
+            if (retCode != rclcpp::FutureReturnCode::SUCCESS)
+            {
+                RCLCPP_ERROR(pNode_->get_logger(),
+                             "Failure in calling service '%s'.", serviceName.c_str());
+            }
+            else if (!response.get()->is_accepted)
+            {
+                RCLCPP_ERROR(pNode_->get_logger(),
+                             "Failed to finalize calibration. %s",
+                             response.get()->msg.c_str());
+            }
+        }
+        else
+        {
+            RCLCPP_ERROR(pNode_->get_logger(),
+                         "Service '%s' is not available.", serviceName.c_str());
         }
     };
 
     //--- show progress dialog
     showProgressDialog("Finalizing calibration ...");
 
-    //--- initialize visualizer asynchronously
-    auto initFuture = std::async(doServiceCall);
+    //--- call service asynchronously
+    doServiceCall(calibratorNodeName_ + "/" + FINALIZE_CALIBRATION_SRV_NAME);
 
-    //--- while future is not ready, process QEvents in order for the progress dialog not to freeze
-    while (initFuture.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready)
-        QCoreApplication::processEvents();
+    hideProgressDialog();
 }
 
 //==================================================================================================
 void CalibrationGuiBase::onRemoveObservationButtonClicked()
 {
-    // Function to do service call
-    auto doServiceCall = [&]()
+    auto doServiceCall = [&](const std::string& serviceName)
     {
-        //--- call service to remove observation
-        ros::ServiceClient removeObservationClient =
-          nh_.serviceClient<RemoveLastObservation>(calibratorNodeletName_ +
-                                                   "/" + REMOVE_OBSERVATION_SRV_NAME);
-        FinalizeCalibration srvMsg;
-        if (!removeObservationClient.call(srvMsg))
+        //--- call service to finalize calibration
+        auto pRemoveObsClient =
+          pNode_->create_client<interf::srv::RemoveLastObservation>(serviceName);
+
+        bool isServiceAvailable = false;
+        const int MAX_TRIES     = 10;
+        int cntr                = 0;
+
+        while (!isServiceAvailable && cntr < MAX_TRIES)
         {
-            ROS_ERROR("[%s] Failed to trigger removal of last observation. ",
-                      guiNodeName_.c_str());
+            isServiceAvailable = pRemoveObsClient->wait_for_service(500ms);
+            cntr++;
+        }
+
+        if (isServiceAvailable)
+        {
+            auto request  = std::make_shared<interf::srv::RemoveLastObservation::Request>();
+            auto response = pRemoveObsClient->async_send_request(request);
+
+            auto retCode = utils::doWhileWaiting(pExecutor_, response, [&]()
+                                                 { QCoreApplication::processEvents(); }, 100);
+
+            if (retCode != rclcpp::FutureReturnCode::SUCCESS)
+            {
+                RCLCPP_ERROR(pNode_->get_logger(),
+                             "Failure in calling service '%s'.", serviceName.c_str());
+            }
+            else if (!response.get()->is_accepted)
+            {
+                RCLCPP_ERROR(pNode_->get_logger(),
+                             "Failed to remove last observation. %s",
+                             response.get()->msg.c_str());
+            }
+        }
+        else
+        {
+            RCLCPP_ERROR(pNode_->get_logger(),
+                         "Service '%s' is not available.", serviceName.c_str());
         }
     };
 
     //--- show progress dialog
     showProgressDialog("Removing last observation ...");
 
-    //--- initialize visualizer asynchronously
-    auto initFuture = std::async(doServiceCall);
-
-    //--- while future is not ready, process QEvents in order for the progress dialog not to freeze
-    while (initFuture.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready)
-        QCoreApplication::processEvents();
+    //--- call service asynchronously
+    doServiceCall(calibratorNodeName_ + "/" + REMOVE_OBSERVATION_SRV_NAME);
 
     hideProgressDialog();
 }

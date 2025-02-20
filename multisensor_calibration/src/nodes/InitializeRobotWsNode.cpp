@@ -1,40 +1,18 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+/***********************************************************************
+ *
+ *   Copyright (c) 2022 - 2024 Fraunhofer Institute of Optronics,
+ *   System Technologies and Image Exploitation IOSB
+ *
+ **********************************************************************/
 
 // Std
 #include <filesystem>
 
 // ROS
-#include <ros/ros.h>
-#include <sensor_msgs/PointCloud2.h>
+#include <rclcpp/rclcpp.hpp>
 
 // multisensor_calibration
-#include "../../include/multisensor_calibration/config/Workspace.h"
+#include "../../include/multisensor_calibration/io/Workspace.h"
 
 #if !defined(TARGET_NAME)
 #define TARGET_NAME ""
@@ -46,77 +24,98 @@ namespace fs = std::filesystem;
  * @brief Entry point for the 'initialize_robot_workspace' node.
  *
  * This will initialize a robot workspace with given information.
- *
- * <b>Launch-Parameters:</b>
- * - ```robot_ws_path```: Path to where the robot workspace is to be initialized.
- *    - Type: String
- *    - Default: ""
- * - ```robot_name```: Name of the robot to which the workspace corresponds.
- *    - Type: String
- *    - Default: ""
- * - ```urdf_model_path```: (Optional) Path to URDF model associated with the robot.
- *    - Type: String
- *    - Default: ""
  */
-int main(int argc, char** argv)
+
+class RobotWsInitializer : public rclcpp::Node
 {
-    //---Initialize ROS node
-    ros::init(argc, argv, TARGET_NAME);
-    ros::NodeHandle nh("~");
-
-    //--- Read launch parameters
-    std::string robotWsPathStr; // string containing read robot_ws_path
-    nh.param<std::string>("robot_ws_path", robotWsPathStr, "");
-    if (robotWsPathStr.empty())
+  public:
+    RobotWsInitializer() :
+      Node(TARGET_NAME),
+      isInitialized_(false)
     {
-        ROS_ERROR("[%s] None or empty path string passed to 'robot_ws_path'."
-                  "\nPlease provide valid path to robot workspace.",
-                  TARGET_NAME);
-        return 1;
+        //--- Setup launch parameters
+        declare_parameter<std::string>("robot_ws_path", "");
+        declare_parameter<std::string>("robot_name", "");
+        declare_parameter<std::string>("urdf_model_path", "");
+
+        //--- Get the launch parameters
+
+        // string containing read robot_ws_path
+        std::string robotWsPathStr = get_parameter("robot_ws_path").as_string();
+        if (robotWsPathStr.empty())
+        {
+            RCLCPP_ERROR(this->get_logger(),
+                         "None or empty path string passed to 'robot_ws_path'."
+                         "\nPlease provide valid path to robot workspace.");
+            return;
+        }
+
+        // name of robot
+        std::string robotName = get_parameter("robot_name").as_string();
+        if (robotName.empty())
+        {
+            RCLCPP_ERROR(this->get_logger(),
+                         "None or empty string passed to 'robot_name'."
+                         "\nPlease provide valid robot name.");
+            return;
+        }
+
+        // string containing read robot_ws_path
+        std::string urdfModelPathStr = get_parameter("urdf_model_path").as_string();
+
+        //--- initialize workspace
+        multisensor_calibration::RobotWorkspace robotWs(robotWsPathStr, this->get_logger());
+        if (robotWs.isValid())
+        {
+            RCLCPP_WARN(this->get_logger(),
+                        "Robot workspace already exists and will not be reinitialized."
+                        "\nWorkspace path: %s",
+                        robotWsPathStr.c_str());
+            return;
+        }
+        else if (fs::exists(fs::absolute(robotWsPathStr)))
+        {
+            RCLCPP_WARN(this->get_logger(),
+                        "Given path to workspace already exists but is not a robot workspace."
+                        "No initialization is performed."
+                        "\nWorkspace path: %s",
+                        robotWsPathStr.c_str());
+            return;
+        }
+
+        robotWs.initialize();
+        robotWs.load();
+
+        //--- save settings
+        QSettings* pSettings = robotWs.settingsPtr();
+        pSettings->setValue("robot/name", QString::fromStdString(robotName));
+        pSettings->setValue("robot/urdf_model_path", QString::fromStdString(urdfModelPathStr));
+        pSettings->sync();
+
+        RCLCPP_INFO(this->get_logger(),
+                    "Robot workspace successfully initialized."
+                    "\nWorkspace path: %s",
+                    robotWsPathStr.c_str());
+
+        isInitialized_ = true;
     }
 
-    std::string robotName; // name of robot
-    nh.param<std::string>("robot_name", robotName, "");
-    if (robotName.empty())
+    bool isInitialized() const
     {
-        ROS_ERROR("[%s] None or empty string passed to 'robot_name'."
-                  "\nPlease provide valid robot name.",
-                  TARGET_NAME);
-        return 1;
+        return isInitialized_;
     }
 
-    std::string urdfModelPathStr; // string containing read robot_ws_path
-    nh.param<std::string>("urdf_model_path", urdfModelPathStr, "");
+  private:
+    bool isInitialized_;
+};
 
-    //--- initialize workspace
-    multisensor_calibration::RobotWorkspace robotWs(robotWsPathStr);
-    if (robotWs.isValid())
-    {
-        ROS_WARN("[%s] Robot workspace already exists and will not be reinitialized."
-                 "\nWorkspace path: %s",
-                 TARGET_NAME, robotWsPathStr.c_str());
+int main(int argc, char* argv[])
+{
+    rclcpp::init(argc, argv);
+    auto node = std::make_shared<RobotWsInitializer>();
+    if (!node->isInitialized())
         return 1;
-    }
-    else if (fs::exists(fs::absolute(robotWsPathStr)))
-    {
-        ROS_WARN("[%s] Given path to workspace already exists but is not a robot workspace."
-                 "No initialization is performed."
-                 "\nWorkspace path: %s",
-                 TARGET_NAME, robotWsPathStr.c_str());
-        return 1;
-    }
 
-    robotWs.initialize();
-    robotWs.load();
-
-    //--- save settings
-    QSettings* pSettings = robotWs.settingsPtr();
-    pSettings->setValue("robot/name", QString::fromStdString(robotName));
-    pSettings->setValue("robot/urdf_model_path", QString::fromStdString(urdfModelPathStr));
-    pSettings->sync();
-
-    ROS_INFO("[%s] Robot workspace successfully initialized."
-             "\nWorkspace path: %s",
-             TARGET_NAME, robotWsPathStr.c_str());
+    rclcpp::shutdown();
     return 0;
 }

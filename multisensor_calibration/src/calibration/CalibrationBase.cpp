@@ -1,42 +1,20 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+/***********************************************************************
+ *
+ *   Copyright (c) 2022 - 2024 Fraunhofer Institute of Optronics,
+ *   System Technologies and Image Exploitation IOSB
+ *
+ **********************************************************************/
 
-#include "../include/multisensor_calibration/calibration/CalibrationBase.h"
+#include "../../include/multisensor_calibration/calibration/CalibrationBase.h"
 
 // Std
+#include <chrono>
+#include <functional>
 #include <iostream>
 #include <string>
 
 // Qt
 #include <QFile>
-
-// ROS
-#include <ros/ros.h>
 
 // PCL
 #include <pcl/conversions.h>
@@ -47,11 +25,18 @@
 namespace multisensor_calibration
 {
 
+using namespace std::chrono_literals;
+
 //==================================================================================================
 CalibrationBase::CalibrationBase(ECalibrationType type) :
   type_(type),
-  nodeletName_(""),
   isInitialized_(false),
+  logger_(rclcpp::get_logger("")),
+  tfBuffer_(nullptr),
+  tfListener_(nullptr),
+  pCaptureSrv_(nullptr),
+  pFinalizeSrv_(nullptr),
+  pResetSrv_(nullptr),
   pRobotWs_(nullptr),
   robotName_(""),
   isUrdfModelAvailable_(false),
@@ -70,49 +55,87 @@ CalibrationBase::~CalibrationBase()
 }
 
 //==================================================================================================
-bool CalibrationBase::createAndStartCalibrationWorkflow(ros::NodeHandle& ioNh)
+bool CalibrationBase::initializeAndStartSensorCalibration(rclcpp::Node* ipNode)
 {
-    bool isSuccessful = initializeTimers(ioNh);
+    bool isSuccessful = true;
 
-    if (isSuccessful)
-        loadRobotWsTrigger_.start();
+    //--- load robot workspace
+    isSuccessful &= loadRobotWorkspace();
 
-    return isSuccessful;
-}
+    //--- load urdf model, if available
+    if (isUrdfModelAvailable_)
+        isSuccessful &= loadRobotUrdfModel();
 
-//==================================================================================================
-bool CalibrationBase::initializeDataProcessors()
-{
+    //--- load calibration workspace
+    isSuccessful &= loadCalibrationWorkspace();
+
+    if (!isSuccessful)
+    {
+        return false;
+    }
+
+    //--- initialize sensor data processing
+    isSuccessful &= initializeDataProcessors();
+
+    //--- if not successful, print warning and return
+    if (!isSuccessful)
+    {
+        RCLCPP_ERROR(logger_, "Error in the initialization of the sensor data processing!");
+        return false;
+    }
+
+    //--- initialize subscribers
+    isSuccessful &= initializeSubscribers(ipNode);
+
+    //--- if not successful, print warning and return
+    if (!isSuccessful)
+    {
+        RCLCPP_ERROR(logger_, "Error in the initialization of subscribers!");
+        return false;
+    }
+
+    //--- initialize publishers
+    isSuccessful &= initializePublishers(ipNode);
+
+    //--- if not successful, print warning and return
+    if (!isSuccessful)
+    {
+        RCLCPP_ERROR(logger_, "Error in the initialization of publishers!");
+        return false;
+    }
+
+    RCLCPP_INFO(logger_, "Successfully initialized processing of sensor data.");
 
     return true;
 }
 
 //==================================================================================================
-bool CalibrationBase::initializePublishers(ros::NodeHandle& ioNh)
+void CalibrationBase::initializeTfListener(rclcpp::Node* ipNode)
 {
-    calibResultPub_ = ioNh.advertise<CalibrationResult_Message_T>(
-      CALIB_RESULT_TOPIC_NAME, 10);
-
-    return true;
+    tfBuffer_   = std::make_unique<tf2_ros::Buffer>(ipNode->get_clock());
+    tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
 }
 
 //==================================================================================================
-bool CalibrationBase::initializeServices(ros::NodeHandle& ioNh)
+bool CalibrationBase::initializeServices(rclcpp::Node* ipNode)
 {
     //--- capture target service
-    captureSrv_ = ioNh.advertiseService(
-      CAPTURE_TARGET_SRV_NAME,
-      &CalibrationBase::onRequestTargetCapture, this);
+    pCaptureSrv_ = ipNode->create_service<interf::srv::CaptureCalibTarget>(
+      "~/" + CAPTURE_TARGET_SRV_NAME,
+      std::bind(&CalibrationBase::onRequestTargetCapture, this,
+                std::placeholders::_1, std::placeholders::_2));
 
     //--- finalize calibration
-    finalizeSrv_ = ioNh.advertiseService(
-      FINALIZE_CALIBRATION_SRV_NAME,
-      &CalibrationBase::onRequestCalibrationFinalization, this);
+    pFinalizeSrv_ = ipNode->create_service<interf::srv::FinalizeCalibration>(
+      "~/" + FINALIZE_CALIBRATION_SRV_NAME,
+      std::bind(&CalibrationBase::onRequestCalibrationFinalization, this,
+                std::placeholders::_1, std::placeholders::_2));
 
     //--- reset service
-    resetSrv_ = ioNh.advertiseService(
-      RESET_SRV_NAME,
-      &CalibrationBase::onReset, this);
+    pResetSrv_ = ipNode->create_service<interf::srv::ResetCalibration>(
+      "~/" + RESET_SRV_NAME,
+      std::bind(&CalibrationBase::onReset, this,
+                std::placeholders::_1, std::placeholders::_2));
 
     return true;
 }
@@ -121,7 +144,7 @@ bool CalibrationBase::initializeServices(ros::NodeHandle& ioNh)
 bool CalibrationBase::initializeWorkspaceObjects()
 {
     //--- initialize robot workspace
-    pRobotWs_ = std::make_shared<RobotWorkspace>(robotWsPath_, nodeletName_);
+    pRobotWs_ = std::make_shared<RobotWorkspace>(robotWsPath_, logger_);
 
     return (pRobotWs_ != nullptr);
 }
@@ -170,93 +193,152 @@ bool CalibrationBase::saveCalibrationSettingsToWorkspace()
 }
 
 //==================================================================================================
-bool CalibrationBase::readLaunchParameters(const ros::NodeHandle& iNh)
+void CalibrationBase::setupLaunchParameters(rclcpp::Node* ipNode) const
 {
-    ros::V_string params;
-    iNh.getParamNames(params);
-
     //--- robot workspace path
-    std::string robotWsPathStr; // string containing read robot_ws_path
-    iNh.param<std::string>("robot_ws_path", robotWsPathStr, "");
+    auto robotWsPathDesc = rcl_interfaces::msg::ParameterDescriptor{};
+    robotWsPathDesc.description =
+      "Path to the folder holding the robot workspace. This path will be created if it does not "
+      "yet exist.\n"
+      "Default: \"\"";
+    robotWsPathDesc.read_only = true;
+    ipNode->declare_parameter<std::string>("robot_ws_path", "", robotWsPathDesc);
+
+    //--- path to target configuration file
+    auto targetConfigDesc = rcl_interfaces::msg::ParameterDescriptor{};
+    targetConfigDesc.description =
+      "Path to the file holding the configuration of the calibration target. "
+      "E.g. \"$(find multisensor_calibration)/config/TargetWithCirclesAndAruco.yaml\"\n"
+      "Default: \"\"";
+    targetConfigDesc.read_only = true;
+    ipNode->declare_parameter<std::string>("target_config_file", "", targetConfigDesc);
+
+    //--- save observation to workspace
+    auto saveObservationsDesc = rcl_interfaces::msg::ParameterDescriptor{};
+    saveObservationsDesc.description =
+      "Option to save recorded observations that have been used for the calibration to the "
+      "workspace.\n"
+      "Default: true";
+    ipNode->declare_parameter<bool>("save_observations", true, saveObservationsDesc);
+}
+
+//==================================================================================================
+bool CalibrationBase::readLaunchParameters(const rclcpp::Node* ipNode)
+{
+    //--- robot workspace path
+    std::string robotWsPathStr = ipNode->get_parameter("robot_ws_path").as_string();
     if (robotWsPathStr.empty())
     {
-        ROS_ERROR("[%s] None or empty path string passed to 'robot_ws_path'."
-                  "\nPlease provide valid path to robot workspace.",
-                  nodeletName_.c_str());
+        RCLCPP_ERROR(logger_, "None or empty path string passed to 'robot_ws_path'. "
+                              "Please provide valid path to robot workspace.");
         return false;
     }
     robotWsPath_ = fs::absolute(robotWsPathStr);
 
-    // path to target configuration file
-    std::string targetFileStr;
-    iNh.param<std::string>("target_config_file", targetFileStr, std::string(""));
+    //--- path to target configuration file
+    std::string targetFileStr = ipNode->get_parameter("target_config_file").as_string();
     if (targetFileStr.empty() || !fs::exists(targetFileStr))
     {
-        ROS_ERROR("[%s] Target configuration file path is empty or does not consist: %s",
-                  nodeletName_.c_str(), targetFileStr.c_str());
+        RCLCPP_ERROR(logger_, "Target configuration file path is empty or does not consist: %s",
+                     targetFileStr.c_str());
         return false;
     }
     calibTargetFilePath_ = fs::absolute(targetFileStr);
 
     //--- save observation to workspace
-    saveObservationsToWs_ = iNh.param<bool>("save_observations", false);
+    saveObservationsToWs_ = ipNode->get_parameter("save_observations").as_bool();
 
     return true;
 }
 
 //==================================================================================================
+rcl_interfaces::msg::SetParametersResult CalibrationBase::
+  handleDynamicParameterChange(const std::vector<rclcpp::Parameter>& iParameters)
+{
+    RCLCPP_DEBUG(logger_, "%s", __PRETTY_FUNCTION__);
+
+    // Return value that holds information on success.
+    rcl_interfaces::msg::SetParametersResult retVal;
+    retVal.successful = true;
+
+    //-- loop through all parameters and set information accordingly
+    for (rclcpp::Parameter param : iParameters)
+    {
+        if (this->setDynamicParameter(param))
+        {
+            retVal.successful &= true;
+            break;
+        }
+        else
+        {
+            retVal.successful &= false;
+            retVal.reason = std::string(logger_.get_name()) + ": Parameter '" + param.get_name() +
+                            "' was not found in parameter list.";
+        }
+    }
+
+    return retVal;
+}
+
+//==================================================================================================
+bool CalibrationBase::setDynamicParameter(const rclcpp::Parameter& iParameter)
+{
+    bool retVal = true;
+
+    if (iParameter.get_name() == "save_observations")
+        saveObservationsToWs_ = iParameter.get_value<bool>();
+    else
+        retVal = false;
+
+    return retVal;
+}
+
+//==================================================================================================
 template <typename T>
-T CalibrationBase::readNumericLaunchParameter(const ros::NodeHandle& iNh,
+T CalibrationBase::readNumericLaunchParameter(const rclcpp::Node* ipNode,
                                               const std::string& iParamName,
                                               const T& iDefaultVal,
                                               const T& iMinVal,
                                               const T& iMaxVal) const
 {
-    T num = 0;
-    iNh.param<T>(iParamName, num, iDefaultVal);
+    T num = ipNode->get_parameter(iParamName).get_value<T>();
     if (num < iMinVal)
     {
-        ROS_WARN("[%s]"
-                 "\n\t> (%s < %i) Setting %s to default: %i",
-                 nodeletName_.c_str(), iParamName.c_str(),
-                 iMinVal, iParamName.c_str(), iDefaultVal);
+        RCLCPP_WARN(logger_, "(%s < %i) Setting %s to default: %i",
+                    iParamName.c_str(),
+                    iMinVal, iParamName.c_str(), iDefaultVal);
         num = iDefaultVal;
     }
     else if (num > iMaxVal)
     {
-        ROS_WARN("[%s]"
-                 "\n\t> (%s > %i) Setting %s to default: %i",
-                 nodeletName_.c_str(), iParamName.c_str(),
-                 iMaxVal, iParamName.c_str(), iDefaultVal);
+        RCLCPP_WARN(logger_, "(%s > %i) Setting %s to default : %i ",
+                    iParamName.c_str(),
+                    iMaxVal, iParamName.c_str(), iDefaultVal);
         num = iDefaultVal;
     }
 
     return num;
 }
-template int CalibrationBase::readNumericLaunchParameter<int>(const ros::NodeHandle&,
+template int CalibrationBase::readNumericLaunchParameter<int>(const rclcpp::Node*,
                                                               const std::string&,
                                                               const int&,
                                                               const int&,
                                                               const int&) const;
 
 //==================================================================================================
-std::string CalibrationBase::readStringLaunchParameter(const ros::NodeHandle& iNh,
+std::string CalibrationBase::readStringLaunchParameter(const rclcpp::Node* ipNode,
                                                        const std::string& iParamName,
                                                        const std::string& iDefaultVal) const
 {
 
-    std::string str = "";
-    iNh.param<std::string>(iParamName, str, iDefaultVal);
+    std::string str = ipNode->get_parameter(iParamName).as_string();
 
     //--- if passed string is empty and default value is not empty, it is assumed that the parameter
     //--- is not allowed to be empty.
     if (str.empty() && !iDefaultVal.empty())
     {
-        ROS_WARN("[%s]"
-                 "\n\t> Empty string passed to '%s'. "
-                 "\n\t> Setting '%s' to default: %s",
-                 nodeletName_.c_str(), iParamName.c_str(),
-                 iParamName.c_str(), iDefaultVal.c_str());
+        RCLCPP_WARN(logger_, "Empty string passed to '%s'. Setting '%s' to default: %s",
+                    iParamName.c_str(), iParamName.c_str(), iDefaultVal.c_str());
         str = iDefaultVal;
     }
 
@@ -270,55 +352,8 @@ void CalibrationBase::reset()
 }
 
 //==================================================================================================
-bool CalibrationBase::initializeTimers(ros::NodeHandle& ioNh)
+bool CalibrationBase::loadCalibrationWorkspace()
 {
-    //--- initialize trigger to call routine to load the robot workspace
-    loadRobotWsTrigger_ = ioNh.createTimer(
-      ros::Duration(0.5), &CalibrationBase::onLoadRobotWorkspaceTriggered,
-      this, true, false);
-
-    //--- initialize trigger to call routine to load URDF model of robot
-    loadUrdfModelTrigger_ = ioNh.createTimer(
-      ros::Duration(0.5), &CalibrationBase::onLoadRobotUrdfModelTriggered,
-      this, true, false);
-
-    //--- initialize trigger to call routine to load the calibration workspace
-    loadCalibrationWsTrigger_ = ioNh.createTimer(
-      ros::Duration(0.5), &CalibrationBase::onLoadCalibrationWorkspaceTriggered,
-      this, true, false);
-
-    //--- initialize trigger to call routine to initialize and start data processing
-    startSensorCalibrationTrigger_ = ioNh.createTimer(
-      ros::Duration(0.5), &CalibrationBase::onStartSensorCalibrationTriggered,
-      this, true, false);
-
-    //--- initialize trigger to finalize calibration
-    finalizeCalibrationTrigger_ = ioNh.createTimer(
-      ros::Duration(0.5), &CalibrationBase::onFinalizeCalibrationTriggered,
-      this, true, false);
-
-    return true;
-}
-
-//==================================================================================================
-void CalibrationBase::onFinalizeCalibrationTriggered(const ros::TimerEvent&)
-{
-    //--- reset trigger
-    finalizeCalibrationTrigger_.stop();
-
-    //--- finalize calibration
-    finalizeCalibration();
-
-    //--- save calibration
-    saveCalibration();
-}
-
-//==================================================================================================
-void CalibrationBase::onLoadCalibrationWorkspaceTriggered(const ros::TimerEvent&)
-{
-    //--- reset trigger
-    loadCalibrationWsTrigger_.stop();
-
     //--- assert that the pointer to the calibration workspace is not null
     assert(pCalibrationWs_ != nullptr);
 
@@ -328,134 +363,143 @@ void CalibrationBase::onLoadCalibrationWorkspaceTriggered(const ros::TimerEvent&
     //--- if not successful check to start again
     if (!isSuccessful)
     {
-        ROS_ERROR("[%s] Loading of calibration workspace was not successful. Path: %s.",
-                  nodeletName_.c_str(), pCalibrationWs_->getPath().c_str());
-        isInitialized_ = false;
-        return;
+        RCLCPP_ERROR(logger_, "Loading of calibration workspace was not successful. "
+                              "Path: %s.",
+                     pCalibrationWs_->getPath().c_str());
+
+        return false;
     }
 
     //--- save calibration settings to workspace
     isSuccessful = saveCalibrationSettingsToWorkspace();
 
-    isInitialized_ &= true;
+    RCLCPP_INFO(logger_, "Successfully loaded calibration workspace. "
+                         "Path: %s.",
+                pCalibrationWs_->getPath().c_str());
 
-    ROS_INFO("[%s] Successfully loaded calibration workspace. Path: %s.",
-             nodeletName_.c_str(), pCalibrationWs_->getPath().c_str());
-
-    //--- start trigger of next phase, i.e. starting sensor calibration
-    startSensorCalibrationTrigger_.start();
+    return true;
 }
 
 //==================================================================================================
-void CalibrationBase::onLoadRobotWorkspaceTriggered(const ros::TimerEvent&)
+bool CalibrationBase::loadRobotWorkspace()
 {
-    //--- reset trigger
-    loadRobotWsTrigger_.stop();
-
     //--- assert that the pointer to the robot workspace is not null
     assert(pRobotWs_ != nullptr);
 
     //--- get settings object from workspace
     bool isSuccessful = pRobotWs_->load();
 
-    //--- if not successful check to start again
+    //--- if not successful print error
     if (!isSuccessful)
     {
-        ROS_ERROR("[%s] Loading of robot workspace was not successful.",
-                  nodeletName_.c_str());
-        isInitialized_ = false;
+        RCLCPP_ERROR(logger_, "Loading of robot workspace was not successful. "
+                              "Path: %s.",
+                     pRobotWs_->getPath().c_str());
 
-        return;
+        return false;
     }
 
     //--- read and check contents of settings file
     isSuccessful = readRobotSettings();
     if (!isSuccessful)
     {
-        isInitialized_ = false;
-        return;
-    }
-
-    isInitialized_ &= true;
-
-    ROS_INFO("[%s] Successfully loaded robot workspace. Path: %s.",
-             nodeletName_.c_str(), pRobotWs_->getPath().c_str());
-
-    //--- start trigger of next phase, i.e. loading of urdf model or calibration workspace
-    if (isUrdfModelAvailable_)
-        loadUrdfModelTrigger_.start();
-    else
-        loadCalibrationWsTrigger_.start();
-}
-
-//==================================================================================================
-void CalibrationBase::onLoadRobotUrdfModelTriggered(const ros::TimerEvent&)
-{
-    //--- reset trigger
-    loadUrdfModelTrigger_.stop();
-
-    //--- Read URDF model into XML Doc (needed for later manipulation)
-    urdfModelDoc_.LoadFile(urdfModelPath_.string().c_str());
-
-    //--- initialized model from XML Doc
-    bool isSuccessful = urdfModel_.initXml(&urdfModelDoc_);
-
-    //--- if not successful check to start again
-    if (!isSuccessful)
-    {
-        ROS_ERROR("[%s] Error in reading URDF model from file."
-                  "\nModel file: %s",
-                  nodeletName_.c_str(), urdfModelPath_.string().c_str());
-
-        isInitialized_ = false;
-        return;
-    }
-
-    isInitialized_ &= true;
-
-    ROS_INFO("[%s] Successfully parsed URDF model from file. Path: %s.",
-             nodeletName_.c_str(), urdfModelPath_.c_str());
-
-    //--- start trigger of next phase, i.e. loading of calibration workspace
-    loadCalibrationWsTrigger_.start();
-}
-
-//==================================================================================================
-bool CalibrationBase::onRequestCalibrationFinalization(
-  multisensor_calibration::FinalizeCalibration::Request& iReq,
-  multisensor_calibration::FinalizeCalibration::Response& oRes)
-{
-    UNUSED_VAR(iReq);
-
-    if (!isInitialized_)
         return false;
-
-    //--- if calibration counter is greater than 1, i.e. if at least one calibration iteration
-    //--- has been performed, trigger finalization. otherwise, do not trigger
-    if (calibrationItrCnt_ > 1)
-    {
-        ROS_INFO("[%s] Finalizing calibration.",
-                 nodeletName_.c_str());
-
-        finalizeCalibrationTrigger_.start();
-
-        oRes.isAccepted = true;
-        oRes.msg        = "Finalizing calibration.";
     }
-    else
-    {
-        oRes.isAccepted = false;
-        oRes.msg        = "No calibration available.";
-    }
+
+    RCLCPP_INFO(logger_, "Successfully loaded robot workspace. "
+                         "Path: %s.",
+                pRobotWs_->getPath().c_str());
+
     return true;
 }
 
 //==================================================================================================
-bool CalibrationBase::onRequestTargetCapture(
-  multisensor_calibration::CaptureCalibTarget::Request& iReq,
-  multisensor_calibration::CaptureCalibTarget::Response& oRes)
+bool CalibrationBase::loadRobotUrdfModel()
 {
-    UNUSED_VAR(iReq);
+    //--- Read URDF model into XML Doc (needed for later manipulation)
+    urdfModelDoc_.LoadFile(urdfModelPath_.string().c_str());
+
+    //--- initialized model from file
+    bool isSuccessful = urdfModel_.initFile(urdfModelPath_.string());
+
+    //--- if not successful check to start again
+    if (!isSuccessful)
+    {
+        RCLCPP_ERROR(logger_, "Error in reading URDF model from file. "
+                              "Model file: %s",
+                     urdfModelPath_.string().c_str());
+        return false;
+    }
+
+    RCLCPP_INFO(logger_, "Successfully parsed URDF model from file. "
+                         "Path: %s.",
+                urdfModelPath_.c_str());
+
+    return true;
+}
+
+//==================================================================================================
+bool CalibrationBase::onRequestCalibrationFinalization(
+  const std::shared_ptr<interf::srv::FinalizeCalibration::Request> ipReq,
+  std::shared_ptr<interf::srv::FinalizeCalibration::Response> opRes)
+{
+    UNUSED_VAR(ipReq);
+
+    if (!isInitialized_)
+    {
+        opRes->is_accepted = false;
+        opRes->msg         = "Calibration not successful! "
+                             "Node is not initialized.";
+
+        RCLCPP_ERROR(logger_, "%s", opRes->msg.c_str());
+
+        return false;
+    }
+
+    if (calibrationItrCnt_ <= 1)
+    {
+        opRes->is_accepted = false;
+        opRes->msg         = "Calibration not successful! "
+                             "Not enough observations.";
+
+        RCLCPP_ERROR(logger_, "%s", opRes->msg.c_str());
+
+        return false;
+    }
+
+    //--- if calibration counter is greater than 1, i.e. if at least one calibration iteration
+    //--- has been performed, trigger finalization. otherwise, do not trigger
+
+    //--- finalize calibration
+    bool isSuccessful = finalizeCalibration();
+
+    //--- save calibration
+    isSuccessful &= saveCalibration();
+
+    if (isSuccessful)
+    {
+        opRes->is_accepted = true;
+        opRes->msg         = "Calibration successful.";
+
+        RCLCPP_INFO(logger_, "%s", opRes->msg.c_str());
+    }
+    else
+    {
+        opRes->is_accepted = false;
+        opRes->msg         = "Error in finalizing the calibration.";
+
+        RCLCPP_ERROR(logger_, "%s", opRes->msg.c_str());
+    }
+
+    return opRes->is_accepted;
+}
+
+//==================================================================================================
+bool CalibrationBase::onRequestTargetCapture(
+  const std::shared_ptr<interf::srv::CaptureCalibTarget::Request> ipReq,
+  std::shared_ptr<interf::srv::CaptureCalibTarget::Response> opRes)
+{
+    UNUSED_VAR(ipReq);
 
     if (!isInitialized_)
         return false;
@@ -467,76 +511,28 @@ bool CalibrationBase::onRequestTargetCapture(
     captureCalibrationTarget_ = true;
 
     //--- write response
-    ROS_INFO("[%s] Start looking for calibration target!",
-             nodeletName_.c_str());
+    opRes->msg = "Start looking for calibration target!";
 
-    oRes.msg = "Start looking for calibration target!";
+    opRes->is_accepted = true;
 
-    oRes.isAccepted = true;
+    RCLCPP_INFO(logger_, "%s", opRes->msg.c_str());
 
     return true;
 }
 
 //==================================================================================================
-bool CalibrationBase::onReset(multisensor_calibration::ResetCalibration::Request& iReq,
-                              multisensor_calibration::ResetCalibration::Response& oRes)
+bool CalibrationBase::onReset(
+  const std::shared_ptr<interf::srv::ResetCalibration::Request> ipReq,
+  std::shared_ptr<interf::srv::ResetCalibration::Response> opRes)
 {
-    UNUSED_VAR(iReq);
+    UNUSED_VAR(ipReq);
 
     reset();
 
-    oRes.isAccepted = true;
-    oRes.msg        = "Calibration is reset.";
+    opRes->is_accepted = true;
+    opRes->msg         = "Calibration is reset.";
 
     return true;
-}
-
-//==================================================================================================
-void CalibrationBase::onStartSensorCalibrationTriggered(const ros::TimerEvent&)
-{
-    //--- reset trigger
-    startSensorCalibrationTrigger_.stop();
-
-    //--- initialize sensor data processing
-    bool isSuccessful = initializeDataProcessors();
-
-    //--- if not successful, print warning and return
-    if (!isSuccessful)
-    {
-        ROS_ERROR("[%s]"
-                  "\n\t> Error in the initialization of the sensor data processing!",
-                  nodeletName_.c_str());
-        return;
-    }
-
-    //--- initialize subscribers
-    isSuccessful = initializeSubscribers(nh_);
-
-    //--- if not successful, print warning and return
-    if (!isSuccessful)
-    {
-        ROS_ERROR("[%s]"
-                  "\n\t> Error in the initialization of subscribers!",
-                  nodeletName_.c_str());
-        return;
-    }
-
-    //--- initialize publishers
-    isSuccessful = initializePublishers(pnh_);
-
-    //--- if not successful, print warning and return
-    if (!isSuccessful)
-    {
-        ROS_ERROR("[%s]"
-                  "\n\t> Error in the initialization of publishers!",
-                  nodeletName_.c_str());
-        return;
-    }
-
-    isInitialized_ &= true;
-
-    ROS_INFO("[%s] Successfully initialized processing of sensor data.",
-             nodeletName_.c_str());
 }
 
 //==================================================================================================
@@ -558,12 +554,11 @@ bool CalibrationBase::readRobotSettings()
           pRobotSettings->value(QString::fromStdString(iParamName), "").toString().toStdString();
         if (str.empty() && !isEmptyAllowed)
         {
-            ROS_ERROR("[%s]Value provided for '%s' in settings file is empty."
-                      "\nSettings file: %s"
-                      "\nPlease provide valid string.",
-                      nodeletName_.c_str(),
-                      iParamName.c_str(),
-                      pRobotSettings->fileName().toStdString().c_str());
+            RCLCPP_ERROR(logger_, "Value provided for '%s' in settings file is empty. "
+                                  "\nSettings file: %s"
+                                  "\nPlease provide valid string. ",
+                         iParamName.c_str(),
+                         pRobotSettings->fileName().toStdString().c_str());
             isValid = false;
         }
         else
@@ -593,13 +588,13 @@ bool CalibrationBase::readRobotSettings()
     if (!isUrdfModelAvailable_)
     {
         isUrdfModelAvailable_ = false;
-        ROS_INFO("[%s] URDF Model is not available",
-                 nodeletName_.c_str());
+        RCLCPP_INFO(logger_, "URDF Model is not available");
         if (!pathStr.empty())
         {
-            ROS_WARN("\t> URDF file: %s"
-                     "\n\t> Please provide valid path (absolute or relative) to URDF model file.",
-                     tmpPath.c_str());
+            RCLCPP_WARN(logger_,
+                        "Please provide valid path (absolute or relative) to URDF model file. "
+                        "URDF file: %s",
+                        tmpPath.c_str());
         }
     }
 

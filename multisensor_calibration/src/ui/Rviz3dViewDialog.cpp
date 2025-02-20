@@ -1,54 +1,35 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+/***********************************************************************
+ *
+ *   Copyright (c) 2022 - 2024 Fraunhofer Institute of Optronics,
+ *   System Technologies and Image Exploitation IOSB
+ *
+ **********************************************************************/
 
 #include "../../include/multisensor_calibration/ui/Rviz3dViewDialog.h"
 
 // ROS
-#include <rviz/view_manager.h>
+#include <rviz_common/tool_manager.hpp>
+#include <rviz_common/view_manager.hpp>
+#include <rviz_common/visualization_manager.hpp>
 
 // Qt
 #include <QCloseEvent>
 #include <QMessageBox>
 
 // multisensor_calibration
-#include "../../include/multisensor_calibration/common/common.h"
 #include "ui_ViewDialog.h"
 
 namespace multisensor_calibration
 {
 
 //==================================================================================================
-Rviz3dViewDialog::Rviz3dViewDialog(QWidget* parent) :
+Rviz3dViewDialog::Rviz3dViewDialog(QWidget* parent, std::string iNodeAbstractionName) :
   QDialog(parent),
   pUi_(new Ui::ViewDialog),
   isInitialized_(false),
   pRenderPanel_(nullptr),
   pVisManager_(nullptr),
+  nodeAbsName_(iNodeAbstractionName),
   fixedReferenceFrame_(""),
   axisReferenceFrames_(),
   cornerCloudTopicNames_(),
@@ -57,6 +38,7 @@ Rviz3dViewDialog::Rviz3dViewDialog(QWidget* parent) :
   distanceCloudTopicNames_(),
   targetCloudTopicNames_()
 {
+    pRosNodeAbs_ = std::make_shared<rviz_common::ros_integration::RosNodeAbstraction>(nodeAbsName_);
     pUi_->setupUi(this);
 }
 
@@ -72,14 +54,23 @@ bool Rviz3dViewDialog::addAxes(const std::string& iReferenceFrame)
     //--- if visualization manager is not null, create display
     if (pVisManager_)
     {
-        rviz::Display* pAxesDisplay_ =
+        rviz_common::Display* pAxesDisplay_ =
           pVisManager_->createDisplay(
-            "rviz/Axes",
+            "rviz_default_plugins/Axes",
             "Axes " + QString::number(axisReferenceFrames_.size()),
             true);
 
         if (!iReferenceFrame.empty())
             pAxesDisplay_->subProp("Reference Frame")->setValue(QString::fromStdString(iReferenceFrame));
+
+        rviz_common::Display* pGridDisplay =
+          pVisManager_->createDisplay(
+            "rviz_default_plugins/Grid",
+            "Grid " + QString::number(axisReferenceFrames_.size()),
+            true);
+
+        if (!iReferenceFrame.empty())
+            pGridDisplay->subProp("Reference Frame")->setValue(QString::fromStdString(iReferenceFrame));
     }
 
     //--- if reference name not in list, add to list
@@ -96,12 +87,12 @@ bool Rviz3dViewDialog::addGuidedPlacementBox(const std::string& iTopicName)
     //--- if visualization manager is not null, create display
     if (pVisManager_)
     {
-        rviz::Display* pMarkerDisplay_ =
+        rviz_common::Display* pMarkerDisplay_ =
           pVisManager_->createDisplay(
-            "rviz/Marker",
+            "rviz_default_plugins/Marker",
             "Guided Placement Box " + QString::number(placementBoxTopicNames_.size()),
             true);
-        pMarkerDisplay_->subProp("Marker Topic")->setValue(QString::fromStdString(iTopicName));
+        pMarkerDisplay_->subProp("Topic")->setValue(QString::fromStdString(iTopicName));
     }
 
     //--- if topic name not in list, add to list
@@ -118,9 +109,9 @@ bool Rviz3dViewDialog::addMarkerCornersCloud(const std::string& iTopicName)
     //--- if visualization manager is not null, create display
     if (pVisManager_)
     {
-        rviz::Display* pCloudDisplay_ =
+        rviz_common::Display* pCloudDisplay_ =
           pVisManager_->createDisplay(
-            "rviz/PointCloud2",
+            "rviz_default_plugins/PointCloud2",
             "Marker Corners Cloud " + QString::number(cornerCloudTopicNames_.size()),
             true);
         pCloudDisplay_->subProp("Topic")->setValue(QString::fromStdString(iTopicName));
@@ -145,9 +136,9 @@ bool Rviz3dViewDialog::addRawSensorCloud(const std::string& iTopicName)
     //--- if visualization manager is not null, create display
     if (pVisManager_)
     {
-        rviz::Display* pCloudDisplay_ =
+        rviz_common::Display* pCloudDisplay_ =
           pVisManager_->createDisplay(
-            "rviz/PointCloud2",
+            "rviz_default_plugins/PointCloud2",
             "Raw Sensor Cloud " + QString::number(sensorCloudTopicNames_.size()),
             true);
         pCloudDisplay_->subProp("Topic")->setValue(QString::fromStdString(iTopicName));
@@ -172,9 +163,9 @@ bool Rviz3dViewDialog::addRegionsOfInterestCloud(const std::string& iTopicName)
     //--- if visualization manager is not null, create display
     if (pVisManager_)
     {
-        rviz::Display* pCloudDisplay_ =
+        rviz_common::Display* pCloudDisplay_ =
           pVisManager_->createDisplay(
-            "rviz/PointCloud2",
+            "rviz_default_plugins/PointCloud2",
             "Regions-of-Interest Cloud " + QString::number(roisCloudTopicNames_.size()),
             true);
         pCloudDisplay_->subProp("Topic")->setValue(QString::fromStdString(iTopicName));
@@ -199,9 +190,9 @@ bool Rviz3dViewDialog::addPointWiseDistanceCloud(const std::string& iTopicName)
     //--- if visualization manager is not null, create display
     if (pVisManager_)
     {
-        rviz::Display* pCloudDisplay_ =
+        rviz_common::Display* pCloudDisplay_ =
           pVisManager_->createDisplay(
-            "rviz/PointCloud2",
+            "rviz_default_plugins/PointCloud2",
             "Point-Wise Distance Cloud " + QString::number(distanceCloudTopicNames_.size()),
             true);
         pCloudDisplay_->subProp("Topic")->setValue(QString::fromStdString(iTopicName));
@@ -226,9 +217,9 @@ bool Rviz3dViewDialog::addCalibTargetCloud(const std::string& iTopicName)
     //--- if visualization manager is not null, create display
     if (pVisManager_)
     {
-        rviz::Display* pCloudDisplay_ =
+        rviz_common::Display* pCloudDisplay_ =
           pVisManager_->createDisplay(
-            "rviz/PointCloud2",
+            "rviz_default_plugins/PointCloud2",
             "Calibration Target Cloud " + QString::number(targetCloudTopicNames_.size()),
             true);
         pCloudDisplay_->subProp("Topic")->setValue(QString::fromStdString(iTopicName));
@@ -250,12 +241,15 @@ bool Rviz3dViewDialog::addCalibTargetCloud(const std::string& iTopicName)
 //==================================================================================================
 void Rviz3dViewDialog::closeEvent(QCloseEvent* closeEvent)
 {
-    if (isInitialized_ && pVisManager_ != nullptr)
+    if (isInitialized_ && pRenderPanel_)
     {
         pUi_->verticalLayout->removeWidget(pRenderPanel_.get());
 
+        pRenderPanel_->close();
         pRenderPanel_.reset();
-        pVisManager_.reset();
+
+        if (pVisManager_)
+            pVisManager_.reset();
 
         isInitialized_ = false;
     }
@@ -284,11 +278,11 @@ bool Rviz3dViewDialog::setView(const EViews& iView)
         default:
         case ORBIT:
         {
-            pVisManager_->getViewManager()->setCurrentViewControllerType("rviz/Orbit");
+            pVisManager_->getViewManager()->setCurrentViewControllerType("rviz_default_plugins/Orbit");
         }
         break;
         case TOP_DOWN:
-            pVisManager_->getViewManager()->setCurrentViewControllerType("rviz/TopDownOrtho");
+            pVisManager_->getViewManager()->setCurrentViewControllerType("rviz_default_plugins/TopDownOrtho");
             break;
         }
     }
@@ -308,17 +302,24 @@ void Rviz3dViewDialog::showEvent(QShowEvent* showEvent)
 //==================================================================================================
 void Rviz3dViewDialog::initRenderPanel()
 {
-    //--- create instances
-    pRenderPanel_ = std::make_shared<rviz::RenderPanel>();
-    pVisManager_  = std::make_shared<rviz::VisualizationManager>(pRenderPanel_.get());
+    QApplication::processEvents();
+    pRenderPanel_ = std::make_shared<rviz_common::RenderPanel>(this);
+    QApplication::processEvents();
+    pRenderPanel_->getRenderWindow()->initialize();
 
-    //--- add panel to layout
-    pUi_->verticalLayout->addWidget(pRenderPanel_.get());
+    auto clock   = pRosNodeAbs_->get_raw_node()->get_clock();
+    pVisManager_ = std::make_shared<rviz_common::VisualizationManager>(pRenderPanel_.get(), pRosNodeAbs_, nullptr, clock);
+    pRenderPanel_->initialize(pVisManager_.get());
+    QApplication::processEvents();
 
-    //--- initialize panel and visualization manager
-    pRenderPanel_->initialize(pVisManager_->getSceneManager(), pVisManager_.get());
     pVisManager_->initialize();
     pVisManager_->startUpdate();
+
+    auto tm = pVisManager_->getToolManager();
+    tm->addTool("rviz_default_plugins/MoveCamera");
+
+    // //--- add panel to layout
+    pUi_->verticalLayout->addWidget(pRenderPanel_.get());
 
     //--- setup content
     if (!fixedReferenceFrame_.empty())

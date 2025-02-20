@@ -34,7 +34,8 @@
 #include <unordered_map>
 
 // ROS
-#include <tf/transform_listener.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 // Qt
 #include <QComboBox>
@@ -53,7 +54,7 @@ class ExtrinsicLidarReferenceConfigWidget;
 /**
  * @ingroup ui
  * @brief Widget holding the configuration options for the extrinsic lidar-reference calibration.
- * This is part of the calibration configurator of the multisensor_calibration node.
+ * This is part of the calibration configurator of the multi_sensor_calibration node.
  */
 class ExtrinsicLidarReferenceConfigWidget : public QWidget
 {
@@ -172,8 +173,9 @@ class ExtrinsicLidarReferenceConfigWidget : public QWidget
     /// Map holding QSettings mapped to sensor pair
     std::map<std::string, std::shared_ptr<QSettings>> sensorPairSettingsMap_;
 
-    /// Transform listener to get transform between the two sensor frames
-    tf::TransformListener tfListener_;
+    /// Transform buffer and listener to get transform between the two sensor frames
+    std::unique_ptr<tf2_ros::Buffer> tfBuffer_;
+    std::shared_ptr<tf2_ros::TransformListener> tfListener_{nullptr};
 };
 
 } // namespace multisensor_calibration

@@ -36,11 +36,13 @@
 
 // Qt
 #include <QDialog>
+#include <QWidget>
 
 // Rviz
-#include <rviz/display.h>
-#include <rviz/render_panel.h>
-#include <rviz/visualization_manager.h>
+#include <rviz_common/display.hpp>
+#include <rviz_common/render_panel.hpp>
+#include "rviz_common/visualization_manager.hpp"
+#include <rviz_common/visualization_frame.hpp>
 
 namespace multisensor_calibration
 {
@@ -82,7 +84,7 @@ class Rviz3dViewDialog : public QDialog
      *
      * @param parent
      */
-    Rviz3dViewDialog(QWidget* parent = nullptr);
+    Rviz3dViewDialog(QWidget* parent = nullptr, std::string iNodeAbstractionName = "rviz3dViewNodeAbs");
 
     /**
      * @brief Destructor
@@ -189,10 +191,17 @@ class Rviz3dViewDialog : public QDialog
     bool isInitialized_;
 
     /// Pointer to render panel in which the view is to be rendered.
-    std::shared_ptr<rviz::RenderPanel> pRenderPanel_;
+    std::shared_ptr<rviz_common::RenderPanel> pRenderPanel_;
 
-    /// Pointer to visualization manager.
-    std::shared_ptr<rviz::VisualizationManager> pVisManager_;
+    /// Pointer to visualization manager and frame.
+    std::shared_ptr<rviz_common::VisualizationManager> pVisManager_;
+
+    /// Pointer to RosNodeAbstraction, needed in ROS 2
+    std::string nodeAbsName_;
+    std::shared_ptr<rviz_common::ros_integration::RosNodeAbstraction> pRosNodeAbs_;
+
+    /// Pointer to a WindowManagerInterface, needed in ROS 2
+    rviz_common::WindowManagerInterface* pWindowManager_;
 
     /// Frame ID of the fixed reference frame.
     std::string fixedReferenceFrame_;

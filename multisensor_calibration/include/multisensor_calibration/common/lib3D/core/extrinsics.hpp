@@ -1,32 +1,4 @@
-﻿// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
-
-#ifndef LIB3D_CAMERAEXTRINSICS_H
+﻿#ifndef LIB3D_CAMERAEXTRINSICS_H
 #define LIB3D_CAMERAEXTRINSICS_H
 
 // Std
@@ -34,14 +6,13 @@
 #include <cmath>
 
 // OpenCV
-#include <opencv2/calib3d.hpp>
 #include <opencv2/core.hpp>
+#include <opencv2/calib3d.hpp>
 
 #include "exceptions.hpp"
 #include "geometry.hpp"
 
-namespace lib3d
-{
+namespace lib3d {
 
 /**
  @ingroup camera_geom
@@ -53,14 +24,14 @@ class Rotation
     //--- METHOD DECLERATION ---//
 
   public:
+
     /**
      @brief Zero initialization constructor.
 
      This will initialize a zero rotation, i.e. identity rotation matrix.
      */
     explicit Rotation() :
-      mRMat(cv::Matx33d::eye()),
-      mRodriguesVec(cv::Vec3d(0.0, 0.0, 0.0))
+      mRMat(cv::Matx33d::eye()), mRodriguesVec(cv::Vec3d(0.0,0.0,0.0))
     {
     }
 
@@ -71,7 +42,7 @@ class Rotation
     explicit Rotation(const cv::Matx33d& RMat) :
       Rotation()
     {
-        this->setRMat(RMat);
+      this->setRMat(RMat);
     }
 
     /**
@@ -80,9 +51,9 @@ class Rotation
      */
     explicit Rotation(const cv::Vec3d& rodriguesVec) :
       Rotation()
-    {
-        this->setRodriguesVec(rodriguesVec);
-    }
+     {
+       this->setRodriguesVec(rodriguesVec);
+     }
 
     /**
      @brief Initialization constructor, initializing rotation of the camera by either providing a
@@ -93,17 +64,17 @@ class Rotation
     explicit Rotation(const cv::Mat& vecOrMat) :
       Rotation()
     {
-        if (vecOrMat.channels() > 1)
-            throw lib3d::InvalidArgumentException(FN_NAME, "(vecOrMat.channels() > 1)");
+      if(vecOrMat.channels() > 1)
+        throw lib3d::InvalidArgumentException(FN_NAME, "(vecOrMat.channels() > 1)");
 
-        if (vecOrMat.size() == cv::Size(3, 3))
-            this->setRMat(vecOrMat);
-        else if (vecOrMat.size() == cv::Size(1, 3) || vecOrMat.size() == cv::Size(3, 1))
-            this->setRodriguesVec(vecOrMat);
-        else
-            throw lib3d::InvalidArgumentException(FN_NAME, "vecOrMat.size() != cv::Size(3,3) &&"
-                                                           "vecOrMat.size() != cv::Size(1,3) &&"
-                                                           "vecOrMat.size() != cv::Size(3,1)");
+      if(vecOrMat.size() == cv::Size(3,3))
+        this->setRMat(vecOrMat);
+      else if (vecOrMat.size() == cv::Size(1,3) || vecOrMat.size() == cv::Size(3,1))
+        this->setRodriguesVec(vecOrMat);
+      else
+        throw lib3d::InvalidArgumentException(FN_NAME, "vecOrMat.size() != cv::Size(3,3) &&" \
+                                                       "vecOrMat.size() != cv::Size(1,3) &&" \
+                                                       "vecOrMat.size() != cv::Size(3,1)");
     }
 
     /**
@@ -111,8 +82,8 @@ class Rotation
      */
     Rotation(const Rotation& rhs)
     {
-        mRMat         = rhs.mRMat;
-        mRodriguesVec = rhs.mRodriguesVec;
+      mRMat = rhs.mRMat;
+      mRodriguesVec = rhs.mRodriguesVec;
     }
 
     /**
@@ -120,39 +91,39 @@ class Rotation
      */
     Rotation(Rotation&& rhs)
     {
-        mRMat     = rhs.mRMat;
-        rhs.mRMat = cv::Matx33d();
+      mRMat = rhs.mRMat;
+      rhs.mRMat = cv::Matx33d();
 
-        mRodriguesVec     = rhs.mRodriguesVec;
-        rhs.mRodriguesVec = cv::Vec3d();
+      mRodriguesVec = rhs.mRodriguesVec;
+      rhs.mRodriguesVec = cv::Vec3d();
     }
 
     /**
      @brief Copy assignment operator.
      */
-    Rotation& operator=(const Rotation& rhs)
+    Rotation& operator= (const Rotation& rhs)
     {
-        mRMat         = rhs.mRMat;
-        mRodriguesVec = rhs.mRodriguesVec;
+      mRMat = rhs.mRMat;
+      mRodriguesVec = rhs.mRodriguesVec;
 
-        return *this;
+      return *this;
     }
 
     /**
      @brief Move assignment operator.
      */
-    Rotation& operator=(Rotation&& rhs)
+    Rotation& operator= (Rotation&& rhs)
     {
-        if (this != &rhs)
-        {
-            mRMat     = rhs.mRMat;
-            rhs.mRMat = cv::Matx33d();
+      if(this != &rhs)
+      {
+        mRMat = rhs.mRMat;
+        rhs.mRMat = cv::Matx33d();
 
-            mRodriguesVec     = rhs.mRodriguesVec;
-            rhs.mRodriguesVec = cv::Vec3d();
-        }
+        mRodriguesVec = rhs.mRodriguesVec;
+        rhs.mRodriguesVec = cv::Vec3d();
+      }
 
-        return *this;
+      return *this;
     }
 
     /**
@@ -162,8 +133,8 @@ class Rotation
      */
     bool operator==(const Rotation& rhs)
     {
-        return (mRMat == rhs.mRMat &&
-                mRodriguesVec == rhs.mRodriguesVec);
+      return (mRMat == rhs.mRMat &&
+              mRodriguesVec == rhs.mRodriguesVec);
     }
 
     /**
@@ -173,29 +144,29 @@ class Rotation
      */
     bool operator!=(const Rotation& rhs)
     {
-        return !(*this == rhs);
+      return !(*this == rhs);
     }
 
     /**
      @brief Multiply and assing operator.
      Allows to add a rotation to existing object.
      */
-    Rotation& operator*=(const Rotation& rhs)
+    Rotation& operator*= (const Rotation& rhs)
     {
-        mRMat = mRMat * rhs.getRMat();
-        cv::Rodrigues(mRMat, mRodriguesVec);
+      mRMat = mRMat * rhs.getRMat();
+      cv::Rodrigues(mRMat, mRodriguesVec);
 
-        return *this;
+      return *this;
     }
 
     /**
      @brief Multiply operator.
      Allows to add tow rotation objects.
      */
-    friend Rotation operator*(Rotation lhs, const Rotation& rhs)
+    friend Rotation operator* (Rotation lhs, const Rotation& rhs)
     {
-        lhs *= rhs;
-        return lhs;
+      lhs *= rhs;
+      return lhs;
     }
 
     /**
@@ -203,7 +174,7 @@ class Rotation
      */
     cv::Matx33d getRMat() const
     {
-        return mRMat;
+      return mRMat;
     }
 
     /**
@@ -211,7 +182,7 @@ class Rotation
      */
     cv::Vec3d getRodriguesVec() const
     {
-        return mRodriguesVec;
+      return mRodriguesVec;
     }
 
     /**
@@ -219,11 +190,11 @@ class Rotation
      */
     void setRMat(const cv::Matx33d& R)
     {
-        if (mRMat != R)
-        {
-            mRMat = R;
-            cv::Rodrigues(mRMat, mRodriguesVec);
-        }
+      if(mRMat != R)
+      {
+        mRMat = R;
+        cv::Rodrigues(mRMat, mRodriguesVec);
+      }
     }
 
     /**
@@ -231,13 +202,13 @@ class Rotation
      */
     void setRMat(const cv::Mat& R)
     {
-        if (R.size() != cv::Size(3, 3))
-            throw lib3d::InvalidArgumentException(FN_NAME, "(R.size() != cv::Size(3,3))");
+      if(R.size() != cv::Size(3,3))
+        throw lib3d::InvalidArgumentException(FN_NAME, "(R.size() != cv::Size(3,3))");
 
-        if (R.channels() > 1)
-            throw lib3d::InvalidArgumentException(FN_NAME, "(R.channels() > 1)");
+      if(R.channels() > 1)
+        throw lib3d::InvalidArgumentException(FN_NAME, "(R.channels() > 1)");
 
-        setRMat(cv::Matx33d(R));
+      setRMat(cv::Matx33d(R));
     }
 
     /**
@@ -245,11 +216,11 @@ class Rotation
      */
     void setRodriguesVec(const cv::Vec3d& rodrigues)
     {
-        if (mRodriguesVec != rodrigues)
-        {
-            mRodriguesVec = rodrigues;
-            cv::Rodrigues(mRodriguesVec, mRMat);
-        }
+      if(mRodriguesVec != rodrigues)
+      {
+        mRodriguesVec = rodrigues;
+        cv::Rodrigues(mRodriguesVec, mRMat);
+      }
     }
 
     /**
@@ -257,13 +228,13 @@ class Rotation
      */
     void setRodriguesVec(const cv::Mat& rodrigues)
     {
-        if (rodrigues.size() != cv::Size(1, 3) && rodrigues.size() != cv::Size(3, 1))
-            throw(lib3d::InvalidArgumentException(FN_NAME, "(rodrigues.size() != cv::Size(1,3) && rodrigues.size() != cv::Size(3,1))"));
+      if (rodrigues.size() != cv::Size(1,3) && rodrigues.size() != cv::Size(3,1))
+        throw(lib3d::InvalidArgumentException(FN_NAME, "(rodrigues.size() != cv::Size(1,3) && rodrigues.size() != cv::Size(3,1))"));
 
-        if (rodrigues.channels() > 1)
-            throw lib3d::InvalidArgumentException(FN_NAME, "(rodrigues.channels() > 1)");
+      if(rodrigues.channels() > 1)
+        throw lib3d::InvalidArgumentException(FN_NAME, "(rodrigues.channels() > 1)");
 
-        setRodriguesVec(cv::Vec3d(rodrigues));
+      setRodriguesVec(cv::Vec3d(rodrigues));
     }
 
     /**
@@ -273,12 +244,12 @@ class Rotation
      */
     static cv::Matx33d createRotationX_rad(const double angleRad)
     {
-        //--- rotation around xAxis (Tilt) ---
-        cv::Matx33d xCompensation(1, 0, 0,
-                                  0, std::cos(angleRad), -std::sin(angleRad),
-                                  0, std::sin(angleRad), std::cos(angleRad));
+      //--- rotation around xAxis (Tilt) ---
+      cv::Matx33d xCompensation(1, 0, 0,
+                                0, std::cos(angleRad), -std::sin(angleRad),
+                                0, std::sin(angleRad), std::cos(angleRad));
 
-        return xCompensation;
+      return xCompensation;
     }
 
     /**
@@ -288,12 +259,12 @@ class Rotation
      */
     static cv::Matx33d createRotationY_rad(const double angleRad)
     {
-        //--- rotation around yAxis (Pan) ---
-        cv::Matx33d yCompensation(std::cos(angleRad), 0, std::sin(angleRad),
-                                  0, 1, 0,
-                                  -std::sin(angleRad), 0, std::cos(angleRad));
+      //--- rotation around yAxis (Pan) ---
+      cv::Matx33d yCompensation(std::cos(angleRad), 0, std::sin(angleRad),
+                            0, 1, 0,
+                            -std::sin(angleRad), 0, std::cos(angleRad));
 
-        return yCompensation;
+      return yCompensation;
     }
 
     /**
@@ -303,12 +274,12 @@ class Rotation
      */
     static cv::Matx33d createRotationZ_rad(const double angleRad)
     {
-        //--- rotation around zAxis  ---
-        cv::Matx33d zCompensation(std::cos(angleRad), -std::sin(angleRad), 0,
-                                  std::sin(angleRad), std::cos(angleRad), 0,
-                                  0, 0, 1);
+      //--- rotation around zAxis  ---
+      cv::Matx33d zCompensation(std::cos(angleRad), -std::sin(angleRad), 0,
+                               std::sin(angleRad), std::cos(angleRad), 0,
+                               0, 0, 1);
 
-        return zCompensation;
+      return zCompensation;
     }
 
     /**
@@ -318,7 +289,7 @@ class Rotation
      */
     static cv::Matx33d createRotationX_deg(const double angleDeg)
     {
-        return createRotationX_rad(degreeToRadian(angleDeg));
+      return createRotationX_rad(degreeToRadian(angleDeg));
     }
 
     /**
@@ -328,7 +299,7 @@ class Rotation
      */
     static cv::Matx33d createRotationY_deg(const double angleDeg)
     {
-        return createRotationY_rad(degreeToRadian(angleDeg));
+      return createRotationY_rad(degreeToRadian(angleDeg));
     }
 
     /**
@@ -338,7 +309,7 @@ class Rotation
      */
     static cv::Matx33d createRotationZ_deg(const double angleDeg)
     {
-        return createRotationZ_rad(degreeToRadian(angleDeg));
+      return createRotationZ_rad(degreeToRadian(angleDeg));
     }
 
     /**
@@ -350,18 +321,18 @@ class Rotation
      */
     static cv::Matx33d createRotationXYZ_rad(const double xRad, const double yRad, const double zRad)
     {
-        //--- rotation around xAxis (Tilt) ---
-        cv::Matx33d xCompensation = createRotationX_rad(xRad);
+      //--- rotation around xAxis (Tilt) ---
+      cv::Matx33d xCompensation = createRotationX_rad(xRad);
 
-        //--- rotation around yAxis (Pan) ---
-        cv::Matx33d yCompensation = createRotationY_rad(yRad);
+      //--- rotation around yAxis (Pan) ---
+      cv::Matx33d yCompensation = createRotationY_rad(yRad);
 
-        cv::Matx33d zCompensation = createRotationZ_rad(zRad);
+      cv::Matx33d zCompensation = createRotationZ_rad(zRad);
 
-        //--- combine rotations and invert ---
-        cv::Matx33d rotCompensation = (zCompensation * yCompensation * xCompensation);
+      //--- combine rotations and invert ---
+      cv::Matx33d rotCompensation = (zCompensation*yCompensation*xCompensation);
 
-        return rotCompensation;
+      return rotCompensation;
     }
 
     /**
@@ -373,13 +344,16 @@ class Rotation
      */
     static cv::Matx33d createRotationXYZ_deg(const double xDeg, const double yDeg, const double zDeg)
     {
-        return createRotationXYZ_rad(degreeToRadian(xDeg), degreeToRadian(yDeg), degreeToRadian(zDeg));
+      return createRotationXYZ_rad(degreeToRadian(xDeg), degreeToRadian(yDeg), degreeToRadian(zDeg));
     }
+
 
     //--- MEMBER DECLERATION ---//
 
   private:
-  private:
+
+    private:
+
     /// Rotation matrix \f$\mathrm{\mathbf{R}}\f$.
     cv::Matx33d mRMat;
 
@@ -396,6 +370,7 @@ class Translation
     //--- METHOD DECLERATION ---//
 
   public:
+
     /**
      @brief Zero initialization constructor.
      */
@@ -410,7 +385,7 @@ class Translation
     explicit Translation(const cv::Vec3d& tVec) :
       Translation()
     {
-        this->setTVec(tVec);
+      this->setTVec(tVec);
     }
 
     /**
@@ -419,7 +394,7 @@ class Translation
     explicit Translation(const double& X, const double& Y, const double& Z) :
       Translation()
     {
-        this->setTVec(X, Y, Z);
+      this->setTVec(X, Y, Z);
     }
 
     /**
@@ -427,7 +402,7 @@ class Translation
      */
     Translation(const Translation& rhs)
     {
-        mTVec = rhs.mTVec;
+      mTVec = rhs.mTVec;
     }
 
     /**
@@ -435,32 +410,32 @@ class Translation
      */
     Translation(Translation&& rhs)
     {
-        mTVec     = rhs.mTVec;
-        rhs.mTVec = cv::Vec3d();
+      mTVec = rhs.mTVec;
+      rhs.mTVec = cv::Vec3d();
     }
 
     /**
      @brief Copy assignment operator.
      */
-    Translation& operator=(const Translation& rhs)
+    Translation& operator= (const Translation& rhs)
     {
-        mTVec = rhs.mTVec;
+      mTVec = rhs.mTVec;
 
-        return *this;
+      return *this;
     }
 
     /**
      @brief Move assignment operator.
      */
-    Translation& operator=(Translation&& rhs)
+    Translation& operator= (Translation&& rhs)
     {
-        if (this != &rhs)
-        {
-            mTVec     = rhs.mTVec;
-            rhs.mTVec = cv::Vec3d();
-        }
+      if(this != &rhs)
+      {
+        mTVec = rhs.mTVec;
+        rhs.mTVec = cv::Vec3d();
+      }
 
-        return *this;
+      return *this;
     }
 
     /**
@@ -469,7 +444,7 @@ class Translation
      */
     bool operator==(const Translation& rhs)
     {
-        return (mTVec == rhs.mTVec);
+      return (mTVec == rhs.mTVec);
     }
 
     /**
@@ -478,45 +453,45 @@ class Translation
      */
     bool operator!=(const Translation& rhs)
     {
-        return !(*this == rhs);
+      return !(*this == rhs);
     }
 
     /**
      @brief Add and assignt operator.
      */
-    Translation& operator+=(const Translation& rhs)
+    Translation& operator+= (const Translation& rhs)
     {
-        mTVec += rhs.mTVec;
+      mTVec += rhs.mTVec;
 
-        return *this;
+      return *this;
     }
 
     /**
      @brief Subtract and assignt operator.
      */
-    Translation& operator-=(const Translation& rhs)
+    Translation& operator-= (const Translation& rhs)
     {
-        mTVec -= rhs.mTVec;
+      mTVec -= rhs.mTVec;
 
-        return *this;
+      return *this;
     }
 
     /**
      @brief Addition operator.
      */
-    friend Translation operator+(Translation lhs, const Translation& rhs)
+    friend Translation operator+ (Translation lhs, const Translation& rhs)
     {
-        lhs += rhs;
-        return lhs;
+      lhs += rhs;
+      return lhs;
     }
 
     /**
      @brief Subtraction operator.
      */
-    friend Translation operator-(Translation lhs, const Translation& rhs)
+    friend Translation operator- (Translation lhs, const Translation& rhs)
     {
-        lhs -= rhs;
-        return lhs;
+      lhs -= rhs;
+      return lhs;
     }
 
     /**
@@ -524,7 +499,7 @@ class Translation
      */
     cv::Vec3d getTVec() const
     {
-        return mTVec;
+      return mTVec;
     }
 
     /**
@@ -532,7 +507,7 @@ class Translation
      */
     void setTVec(const cv::Vec3d& tVec)
     {
-        mTVec = tVec;
+      mTVec = tVec;
     }
 
     /**
@@ -540,13 +515,13 @@ class Translation
      */
     void setTVec(const cv::Mat& tVec)
     {
-        if (tVec.size() != cv::Size(1, 3) && tVec.size() != cv::Size(3, 1))
-            throw lib3d::InvalidArgumentException(FN_NAME, "(tVec.size() != cv::Size(1,3) && tVec.size() != cv::Size(3,1))");
+      if(tVec.size() != cv::Size(1,3) && tVec.size() != cv::Size(3,1))
+        throw lib3d::InvalidArgumentException(FN_NAME, "(tVec.size() != cv::Size(1,3) && tVec.size() != cv::Size(3,1))");
 
-        if (tVec.channels() > 1)
-            throw lib3d::InvalidArgumentException(FN_NAME, "(tVec.channels() > 1)");
+      if(tVec.channels() > 1)
+        throw lib3d::InvalidArgumentException(FN_NAME, "(tVec.channels() > 1)");
 
-        setTVec(cv::Vec3d(tVec));
+      setTVec(cv::Vec3d(tVec));
     };
 
     /**
@@ -554,13 +529,15 @@ class Translation
      */
     void setTVec(const double& x, const double& y, const double& z)
     {
-        setTVec(cv::Vec3d(x, y, z));
+      setTVec(cv::Vec3d(x,y,z));
     }
 
   private:
+
     //--- MEMBER DECLERATION ---//
 
   private:
+
     /// Translation vector of camera.
     cv::Vec3d mTVec;
 };
@@ -632,18 +609,20 @@ class Extrinsics
     //--- ENUM DECLERATION ---//
 
   public:
+
     /**
      @brief Enumeration holding direction of transfomration which is represented by the Extrinsic transformation.
      */
-    enum ETransfDirection
-    {
-        REF_2_LOCAL = 0, ///< Transforming a point \f$\mathrm{P}_\mathrm{ref}\f$ given in a reference coordiante system to the local camera coordinate system.
-        LOCAL_2_REF      ///< Transforming a point \f$\mathrm{P}_\mathrm{loc}\f$ given in the local camera coordiante system to a reference system.
+    enum ETransfDirection {
+      REF_2_LOCAL = 0, ///< Transforming a point \f$\mathrm{P}_\mathrm{ref}\f$ given in a reference coordiante system to the local camera coordinate system.
+      LOCAL_2_REF ///< Transforming a point \f$\mathrm{P}_\mathrm{loc}\f$ given in the local camera coordiante system to a reference system.
     };
+
 
     //--- METHOD DECLERATION ---//
 
   public:
+
     /**
      @brief Default (zero initialization) constructor.
      This will initialize direction of the extrinsic transformation with lib3d::Extrinsics::REF_2_LOCAL.
@@ -656,7 +635,7 @@ class Extrinsics
     /**
      @brief Initialization constructor, intializing the direction with the given variable.
      */
-    explicit Extrinsics(const ETransfDirection transfDirection) :
+    explicit Extrinsics( const ETransfDirection transfDirection)  :
       translation(Translation()),
       rotation(Rotation()),
       mTransfDirection(transfDirection)
@@ -693,23 +672,23 @@ class Extrinsics
     explicit Extrinsics(const cv::Mat& RMatOrVec, const cv::Mat& TVec, const ETransfDirection transfDirection = REF_2_LOCAL) :
       Extrinsics(transfDirection)
     {
-        if (RMatOrVec.channels() > 1 || TVec.channels() > 1)
-            throw lib3d::InvalidArgumentException(FN_NAME, "(RMatOrVec.channels() > 1 || TVec.channels() > 1)");
+      if(RMatOrVec.channels() > 1 || TVec.channels() > 1)
+        throw lib3d::InvalidArgumentException(FN_NAME, "(RMatOrVec.channels() > 1 || TVec.channels() > 1)");
 
-        if (RMatOrVec.size() == cv::Size(3, 3))
-            this->rotation.setRMat(cv::Matx33d(RMatOrVec));
-        else if (RMatOrVec.size() == cv::Size(1, 3) || RMatOrVec.size() == cv::Size(3, 1))
-            this->rotation.setRodriguesVec(RMatOrVec);
-        else
-            throw lib3d::InvalidArgumentException(FN_NAME, "(RMatOrVec.size() != cv::Size(3,3) &&"
-                                                           "RMatOrVec.size() != cv::Size(1,3) &&"
-                                                           "RMatOrVec.size() != cv::Size(3,1))");
+      if(RMatOrVec.size() == cv::Size(3,3))
+        this->rotation.setRMat(cv::Matx33d(RMatOrVec));
+      else if (RMatOrVec.size() == cv::Size(1,3) || RMatOrVec.size() == cv::Size(3,1))
+        this->rotation.setRodriguesVec(RMatOrVec);
+      else
+        throw lib3d::InvalidArgumentException(FN_NAME, "(RMatOrVec.size() != cv::Size(3,3) &&" \
+                                                       "RMatOrVec.size() != cv::Size(1,3) &&" \
+                                                       "RMatOrVec.size() != cv::Size(3,1))");
 
-        if (TVec.size() == cv::Size(1, 3) || TVec.size() == cv::Size(3, 1))
-            this->translation.setTVec(cv::Vec3d(TVec));
-        else
-            throw lib3d::InvalidArgumentException(FN_NAME, "(TVec.size() != cv::Size(1,3) &&"
-                                                           "TVec.size() != cv::Size(3,1))");
+      if(TVec.size() == cv::Size(1,3) || TVec.size() == cv::Size(3,1))
+        this->translation.setTVec(cv::Vec3d(TVec));
+      else
+        throw lib3d::InvalidArgumentException(FN_NAME, "(TVec.size() != cv::Size(1,3) &&" \
+                                                       "TVec.size() != cv::Size(3,1))");
     }
 
     /**
@@ -720,7 +699,7 @@ class Extrinsics
     explicit Extrinsics(const cv::Matx44d& RTMat, const ETransfDirection transfDirection = REF_2_LOCAL) :
       Extrinsics(transfDirection)
     {
-        this->setRTMatrix(RTMat);
+      this->setRTMatrix(RTMat);
     }
 
     /**
@@ -731,12 +710,12 @@ class Extrinsics
     explicit Extrinsics(const cv::Mat& RTMat, const ETransfDirection transfDirection = REF_2_LOCAL) :
       Extrinsics(transfDirection)
     {
-        if (RTMat.size() == cv::Size(4, 4) &&
-            RTMat.channels() == 1)
-            this->setRTMatrix(cv::Matx44d(RTMat));
-        else
-            throw(lib3d::InvalidArgumentException(FN_NAME, "(RTMat.size() != cv::Size(4,4) || "
-                                                           "RTMat.channels() != 1)"));
+      if(RTMat.size() == cv::Size(4,4) &&
+         RTMat.channels() == 1)
+        this->setRTMatrix(cv::Matx44d(RTMat));
+      else
+        throw(lib3d::InvalidArgumentException(FN_NAME, "(RTMat.size() != cv::Size(4,4) || "\
+                                                         "RTMat.channels() != 1)"));
     }
 
     /**
@@ -757,39 +736,39 @@ class Extrinsics
       rotation(rhs.rotation),
       mTransfDirection(rhs.mTransfDirection)
     {
-        rhs.translation = Translation();
-        rhs.rotation    = Rotation();
+      rhs.translation = Translation();
+      rhs.rotation = Rotation();
     }
 
     /**
      @brief Copy assignment operator.
      */
-    Extrinsics& operator=(const Extrinsics& rhs)
+    Extrinsics& operator= (const Extrinsics& rhs)
     {
-        rotation         = rhs.rotation;
-        translation      = rhs.translation;
-        mTransfDirection = rhs.mTransfDirection;
-        return *this;
+      rotation = rhs.rotation;
+      translation = rhs.translation;
+      mTransfDirection = rhs.mTransfDirection;
+      return *this;
     }
 
     /**
      @brief Move assignment operator.
      */
-    Extrinsics& operator=(Extrinsics&& rhs)
+    Extrinsics& operator= (Extrinsics&& rhs)
     {
-        if (this != &rhs)
-        {
-            translation     = rhs.translation;
-            rhs.translation = Translation();
+      if(this != &rhs)
+      {
+        translation = rhs.translation;
+        rhs.translation = Translation();
 
-            rotation     = rhs.rotation;
-            rhs.rotation = Rotation();
+        rotation = rhs.rotation;
+        rhs.rotation = Rotation();
 
-            mTransfDirection     = rhs.mTransfDirection;
-            rhs.mTransfDirection = REF_2_LOCAL;
-        }
+        mTransfDirection = rhs.mTransfDirection;
+        rhs.mTransfDirection = REF_2_LOCAL;
+      }
 
-        return *this;
+      return *this;
     }
 
     /**
@@ -798,9 +777,9 @@ class Extrinsics
      */
     bool operator==(const Extrinsics& rhs)
     {
-        return (rotation == rhs.rotation &&
-                translation == rhs.translation &&
-                mTransfDirection == rhs.mTransfDirection);
+      return (rotation == rhs.rotation &&
+              translation == rhs.translation &&
+              mTransfDirection == rhs.mTransfDirection);
     }
 
     /**
@@ -809,7 +788,7 @@ class Extrinsics
      */
     bool operator!=(const Extrinsics& rhs)
     {
-        return !(*this == rhs);
+      return !(*this == rhs);
     }
 
     /**
@@ -817,10 +796,11 @@ class Extrinsics
      */
     Extrinsics getInverse() const
     {
-        Extrinsics retVal = *this;
-        retVal.invert();
-        return retVal;
+      Extrinsics retVal = *this;
+      retVal.invert();
+      return retVal;
     }
+
 
     /**
      @brief Get the \f$4\times 4\f$ extrinsic transformation matrix. The direction of transformation
@@ -828,11 +808,11 @@ class Extrinsics
      */
     cv::Matx44d getRTMatrix() const
     {
-        cv::Matx44d retVal = cv::Matx44d::eye();
+      cv::Matx44d retVal = cv::Matx44d::eye();
 
-        composeRTMatrix(this->rotation.getRMat(), this->translation.getTVec(), retVal);
+      composeRTMatrix(this->rotation.getRMat(), this->translation.getTVec(), retVal);
 
-        return retVal;
+      return retVal;
     }
 
     /**
@@ -841,10 +821,10 @@ class Extrinsics
      */
     cv::Matx44d getRTMatrix(const ETransfDirection& transfDirection) const
     {
-        if (mTransfDirection == transfDirection)
-            return getRTMatrix();
-        else
-            return this->getInverse().getRTMatrix();
+      if(mTransfDirection == transfDirection)
+        return getRTMatrix();
+      else
+        return this->getInverse().getRTMatrix();
     }
 
     /**
@@ -853,7 +833,7 @@ class Extrinsics
      */
     cv::Matx33d getRotationMat() const
     {
-        return rotation.getRMat();
+      return rotation.getRMat();
     }
 
     /**
@@ -862,7 +842,7 @@ class Extrinsics
      */
     cv::Vec3d getRotationVec() const
     {
-        return rotation.getRodriguesVec();
+      return rotation.getRodriguesVec();
     }
 
     /**
@@ -871,7 +851,7 @@ class Extrinsics
      */
     cv::Vec3d getTranslationVec() const
     {
-        return translation.getTVec();
+      return translation.getTVec();
     }
 
     /**
@@ -881,8 +861,8 @@ class Extrinsics
      */
     void setExtrinsics(cv::Matx33d rotMat, cv::Vec3d translVec)
     {
-        this->rotation.setRMat(rotMat);
-        this->translation.setTVec(translVec);
+      this->rotation.setRMat(rotMat);
+      this->translation.setTVec(translVec);
     }
 
     /**
@@ -892,8 +872,8 @@ class Extrinsics
      */
     void setExtrinsics(cv::Vec3d rotVec, cv::Vec3d translVec)
     {
-        this->rotation.setRodriguesVec(rotVec);
-        this->translation.setTVec(translVec);
+      this->rotation.setRodriguesVec(rotVec);
+      this->translation.setTVec(translVec);
     }
 
     /**
@@ -902,13 +882,13 @@ class Extrinsics
      */
     void setRTMatrix(const cv::Matx44d& RTMat)
     {
-        cv::Matx33d R;
-        cv::Vec3d T;
+      cv::Matx33d R;
+      cv::Vec3d T;
 
-        decomposeRTMatrix(RTMat, R, T);
+      decomposeRTMatrix(RTMat, R, T);
 
-        this->rotation.setRMat(R);
-        this->translation.setTVec(T);
+      this->rotation.setRMat(R);
+      this->translation.setTVec(T);
     }
 
     /**
@@ -916,10 +896,10 @@ class Extrinsics
      */
     void setRTMatrix(const cv::Mat& RTMat)
     {
-        if (RTMat.size() != cv::Size(4, 4) || RTMat.channels() > 1)
-            throw lib3d::InvalidArgumentException(FN_NAME, "(RTMatrix.size() != cv::Size(4,4) || RTMatrix.channels() > 1)");
+      if(RTMat.size() != cv::Size(4,4) || RTMat.channels() > 1)
+        throw lib3d::InvalidArgumentException(FN_NAME, "(RTMatrix.size() != cv::Size(4,4) || RTMatrix.channels() > 1)");
 
-        this->setRTMatrix(cv::Matx44d(RTMat));
+      this->setRTMatrix(cv::Matx44d(RTMat));
     }
 
     /**
@@ -929,10 +909,10 @@ class Extrinsics
      */
     void setRTMatrix(const cv::Matx44d& RTMat, const ETransfDirection& transfDirection)
     {
-        if (mTransfDirection == transfDirection)
-            setRTMatrix(RTMat);
-        else
-            setRTMatrix(RTMat.inv());
+      if(mTransfDirection == transfDirection)
+        setRTMatrix(RTMat);
+      else
+        setRTMatrix(RTMat.inv());
     }
 
     /**
@@ -940,10 +920,11 @@ class Extrinsics
      */
     void setRTMatrix(const cv::Mat& RTMat, const ETransfDirection& transfDirection)
     {
-        if (RTMat.size() != cv::Size(4, 4) || RTMat.channels() > 1)
-            throw lib3d::InvalidArgumentException(FN_NAME, "(RTMatrix.size() != cv::Size(4,4) || RTMatrix.channels() > 1)");
+      if(RTMat.size() != cv::Size(4,4) || RTMat.channels() > 1)
+        throw lib3d::InvalidArgumentException(FN_NAME, "(RTMatrix.size() != cv::Size(4,4) || RTMatrix.channels() > 1)");
 
-        this->setRTMatrix(cv::Matx44d(RTMat), transfDirection);
+      this->setRTMatrix(cv::Matx44d(RTMat), transfDirection);
+
     }
 
     /**
@@ -952,7 +933,7 @@ class Extrinsics
      */
     void setRotationMat(const cv::Matx33d& RMat)
     {
-        this->rotation.setRMat(RMat);
+      this->rotation.setRMat(RMat);
     }
 
     /**
@@ -961,7 +942,7 @@ class Extrinsics
      */
     void setRotationVec(const cv::Vec3d& RodriguesVec)
     {
-        this->rotation.setRodriguesVec(RodriguesVec);
+      this->rotation.setRodriguesVec(RodriguesVec);
     }
 
     /**
@@ -971,16 +952,16 @@ class Extrinsics
      */
     void setRotationMatOrVec(const cv::Mat& rotationMatOrVec)
     {
-        if (rotationMatOrVec.size() == cv::Size(3, 3) && rotationMatOrVec.channels() == 1)
-            this->rotation.setRMat(cv::Matx33d(rotationMatOrVec));
-        else if ((rotationMatOrVec.size() == cv::Size(3, 1) || rotationMatOrVec.size() == cv::Size(1, 3)) &&
-                 rotationMatOrVec.channels() == 1)
-            this->rotation.setRodriguesVec(cv::Vec3d(rotationMatOrVec));
-        else
-            throw lib3d::InvalidArgumentException(FN_NAME, "( (rotationMatOrVec.size() != cv::Size(3,3) && "
-                                                           "rotationMatOrVec.size() != cv::Size(3,1) && "
-                                                           "rotationMatOrVec.size() != cv::Size(1,3) ) || "
-                                                           "rotationMatOrVec.channels() != 1");
+      if(rotationMatOrVec.size() == cv::Size(3,3) && rotationMatOrVec.channels() == 1)
+        this->rotation.setRMat(cv::Matx33d(rotationMatOrVec));
+      else if((rotationMatOrVec.size() == cv::Size(3,1) || rotationMatOrVec.size() == cv::Size(1,3) ) &&
+              rotationMatOrVec.channels() == 1)
+        this->rotation.setRodriguesVec(cv::Vec3d(rotationMatOrVec));
+      else
+        throw lib3d::InvalidArgumentException(FN_NAME, "( (rotationMatOrVec.size() != cv::Size(3,3) && "\
+                                              "rotationMatOrVec.size() != cv::Size(3,1) && " \
+                                              "rotationMatOrVec.size() != cv::Size(1,3) ) || " \
+                                                       "rotationMatOrVec.channels() != 1");
     }
 
     /**
@@ -989,7 +970,7 @@ class Extrinsics
      */
     void setTranslationVec(const cv::Vec3d& TVec)
     {
-        this->translation.setTVec(TVec);
+      this->translation.setTVec(TVec);
     }
 
     /**
@@ -997,10 +978,10 @@ class Extrinsics
      */
     void setTranslationVec(const cv::Mat& TVec)
     {
-        if ((TVec.size() == cv::Size(3, 1) || TVec.size() == cv::Size(1, 3)) && TVec.channels() == 1)
-            this->translation.setTVec(cv::Vec3d(TVec));
-        else
-            throw(lib3d::InvalidArgumentException(FN_NAME, "((TVec.size() != cv::Size(3,1) && TVec.size() != cv::Size(1,3)) || TVec.channels() != 1)"));
+      if((TVec.size() == cv::Size(3,1) || TVec.size() == cv::Size(1,3)) && TVec.channels() == 1)
+        this->translation.setTVec(cv::Vec3d(TVec));
+      else
+        throw(lib3d::InvalidArgumentException(FN_NAME, "((TVec.size() != cv::Size(3,1) && TVec.size() != cv::Size(1,3)) || TVec.channels() != 1)"));
     }
 
     /**
@@ -1008,7 +989,7 @@ class Extrinsics
      */
     void setTranslationVec(const double& x, const double& y, const double& z)
     {
-        this->translation.setTVec(x, y, z);
+      this->translation.setTVec(x,y,z);
     }
 
     /**
@@ -1016,36 +997,36 @@ class Extrinsics
      */
     ETransfDirection getTransfDirection() const
     {
-        return mTransfDirection;
+      return mTransfDirection;
     }
 
     /**
      @brief Method to set the direction of transformation of the Extrinsics. This will invert the
      transformation if data is already set and the passed direction differes from the one stored.
      */
-    void setTransfDirection(const ETransfDirection& transfDirection)
+    void setTransfDirection(const ETransfDirection &transfDirection)
     {
-        if (transfDirection != mTransfDirection)
-        {
-            this->invert();
-        }
+      if(transfDirection != mTransfDirection)
+      {
+        this->invert();
+      }
     }
 
     /**
      @overload
      */
-    static void composeRTMatrix(const cv::Matx33d& rotMat, const cv::Vec3d& translVec, cv::Matx44d& RTMat)
+    static void composeRTMatrix(const cv::Matx33d& rotMat , const cv::Vec3d& translVec, cv::Matx44d& RTMat)
     {
-        RTMat = cv::Matx44d::eye();
+      RTMat = cv::Matx44d::eye();
 
-        //--- copy R
-        for (int n = 0; n < 3; ++n)
-            for (int m = 0; m < 3; ++m)
-                RTMat(m, n) = rotMat(m, n);
+      //--- copy R
+      for(int n = 0; n < 3; ++n)
+        for(int m = 0; m < 3; ++m)
+          RTMat(m,n) = rotMat(m,n);
 
-        //--- copy T
-        for (int n = 0; n < 3; ++n)
-            RTMat(n, 3) = translVec(n);
+      //--- copy T
+      for(int n = 0; n < 3; ++n)
+        RTMat(n,3) = translVec(n);
     }
 
     /**
@@ -1059,36 +1040,36 @@ class Extrinsics
         \mathrm{0} & \mathrm{1}
       \end{bmatrix} \f$
      */
-    static cv::Matx44d composeRTMatrix(const cv::Matx33d& rotMat, const cv::Vec3d& translVec)
+    static cv::Matx44d composeRTMatrix(const cv::Matx33d& rotMat , const cv::Vec3d& translVec)
     {
-        cv::Matx44d RTMat;
+      cv::Matx44d RTMat;
 
-        composeRTMatrix(rotMat, translVec, RTMat);
+      composeRTMatrix(rotMat, translVec, RTMat);
 
-        return RTMat;
+      return RTMat;
     }
 
     /**
      @overload
      */
-    static cv::Matx44d composeRTMatrix(const cv::Vec3d& rotVec, const cv::Vec3d& translVec)
+    static cv::Matx44d composeRTMatrix(const cv::Vec3d& rotVec , const cv::Vec3d& translVec)
     {
-        cv::Matx44d RTMat;
+      cv::Matx44d RTMat;
 
-        composeRTMatrix(rotVec, translVec, RTMat);
+      composeRTMatrix(rotVec, translVec, RTMat);
 
-        return RTMat;
+      return RTMat;
     }
 
     /**
      @overload
      */
-    static void composeRTMatrix(const cv::Vec3d& rotVec, const cv::Vec3d& translVec, cv::Matx44d& RTMat)
+    static void composeRTMatrix(const cv::Vec3d& rotVec , const cv::Vec3d& translVec, cv::Matx44d& RTMat)
     {
-        cv::Matx33d rotMat;
-        cv::Rodrigues(rotVec, rotMat);
+      cv::Matx33d rotMat;
+      cv::Rodrigues(rotVec, rotMat);
 
-        composeRTMatrix(rotMat, translVec, RTMat);
+      composeRTMatrix(rotMat, translVec, RTMat);
     }
 
     /**
@@ -1104,18 +1085,18 @@ class Extrinsics
      */
     static void decomposeRTMatrix(const cv::Matx44d& RTMat, cv::Matx33d& rotMat, cv::Vec3d& translVec)
     {
-        cv::Matx44d newRTMat = RTMat;
-        if (newRTMat(3, 3) != 1.0)
-            newRTMat(3, 3) /= newRTMat(3, 3);
+      cv::Matx44d newRTMat = RTMat;
+      if(newRTMat(3,3) != 1.0)
+        newRTMat(3,3) /= newRTMat(3,3);
 
-        //--- copy R
-        for (int n = 0; n < 3; ++n)
-            for (int m = 0; m < 3; ++m)
-                rotMat(m, n) = newRTMat(m, n);
+      //--- copy R
+      for(int n = 0; n < 3; ++n)
+        for(int m = 0; m < 3; ++m)
+          rotMat(m,n) = newRTMat(m,n);
 
-        //--- copy T
-        for (int n = 0; n < 3; ++n)
-            translVec(n) = newRTMat(n, 3);
+      //--- copy T
+      for(int n = 0; n < 3; ++n)
+        translVec(n) = newRTMat(n,3);
     }
 
     /**
@@ -1123,10 +1104,10 @@ class Extrinsics
      */
     static void decomposeRTMatrix(const cv::Matx44d& RTMat, cv::Vec3d& rotVec, cv::Vec3d& translVec)
     {
-        cv::Matx33d rotMat;
-        decomposeRTMatrix(RTMat, rotMat, translVec);
+      cv::Matx33d rotMat;
+      decomposeRTMatrix(RTMat, rotMat, translVec);
 
-        cv::Rodrigues(rotMat, rotVec);
+      cv::Rodrigues(rotMat, rotVec);
     }
 
     /**
@@ -1137,23 +1118,23 @@ class Extrinsics
      */
     static cv::Matx44d computeRelativeExtrinsics(const cv::Matx44d& eSrc, const cv::Matx44d& eDst)
     {
-        cv::Matx44d relativeSourceToDestination;
+      cv::Matx44d relativeSourceToDestination;
 
-        //--- get 3x3 and 3x1 vectors ---
-        cv::Matx33d rotSource;
-        cv::Vec3d tSource;
-        decomposeRTMatrix(eSrc, rotSource, tSource);
+      //--- get 3x3 and 3x1 vectors ---
+      cv::Matx33d rotSource;
+      cv::Vec3d tSource;
+      decomposeRTMatrix(eSrc, rotSource, tSource);
 
-        cv::Matx33d rotDest;
-        cv::Vec3d tDest;
-        decomposeRTMatrix(eDst, rotDest, tDest);
+      cv::Matx33d rotDest;
+      cv::Vec3d tDest;
+      decomposeRTMatrix(eDst, rotDest, tDest);
 
-        //--- calculate relative transform ---
-        cv::Matx33d rotGes = rotDest * rotSource.t();
-        cv::Vec3d tGes     = tDest - rotGes * tSource;
+      //--- calculate relative transform ---
+      cv::Matx33d rotGes =  rotDest*rotSource.t();
+      cv::Vec3d tGes = tDest - rotGes * tSource;
 
-        composeRTMatrix(rotGes, tGes, relativeSourceToDestination);
-        return relativeSourceToDestination;
+      composeRTMatrix(rotGes, tGes, relativeSourceToDestination);
+      return relativeSourceToDestination;
     }
 
     /**
@@ -1161,22 +1142,22 @@ class Extrinsics
      */
     static cv::Mat computeRelativeExtrinsics(const cv::Mat& eSrc, const cv::Mat& eDst)
     {
-        if (eSrc.size() != cv::Size(4, 4) || eDst.size() != cv::Size(4, 4) ||
-            eSrc.type() != CV_64FC1 || eDst.type() != CV_64FC1)
-            throw lib3d::InvalidArgumentException(FN_NAME, "(eSrc.size() != cv::Size(4,4) || eDst.size() != cv::Size(4,4) || \
+      if(eSrc.size() != cv::Size(4,4) || eDst.size() != cv::Size(4,4) ||
+         eSrc.type() != CV_64FC1 || eDst.type() != CV_64FC1)
+        throw lib3d::InvalidArgumentException(FN_NAME, "(eSrc.size() != cv::Size(4,4) || eDst.size() != cv::Size(4,4) || \
                                               eSrc.type() != CV_64FC1 || eDst.type() != CV_64FC1)");
 
-        cv::Matx44d srcRT, dstRT;
-        for (int n = 0; n < 4; ++n)
+      cv::Matx44d srcRT, dstRT;
+      for(int n = 0; n < 4; ++n)
+      {
+        for(int m = 0; m < 4; ++m)
         {
-            for (int m = 0; m < 4; ++m)
-            {
-                srcRT(m, n) = eSrc.at<double>(m, n);
-                dstRT(m, n) = eDst.at<double>(m, n);
-            }
+          srcRT(m,n) = eSrc.at<double>(m,n);
+          dstRT(m,n) = eDst.at<double>(m,n);
         }
+      }
 
-        return cv::Mat(computeRelativeExtrinsics(srcRT, dstRT));
+      return cv::Mat(computeRelativeExtrinsics(srcRT,dstRT));
     }
 
     /**
@@ -1189,16 +1170,16 @@ class Extrinsics
      */
     static Extrinsics computeRelativeExtrinsics(const Extrinsics& eSrc, const Extrinsics& eDst)
     {
-        Extrinsics eRelativeSourceToDestination;
+      Extrinsics eRelativeSourceToDestination;
 
-        //--- calculate relative transform ---
-        eRelativeSourceToDestination.setRTMatrix(
-          computeRelativeExtrinsics(eSrc.getRTMatrix(Extrinsics::REF_2_LOCAL),
-                                    eDst.getRTMatrix(Extrinsics::REF_2_LOCAL)),
-          Extrinsics::REF_2_LOCAL);
+      //--- calculate relative transform ---
+      eRelativeSourceToDestination.setRTMatrix(
+            computeRelativeExtrinsics(eSrc.getRTMatrix(Extrinsics::REF_2_LOCAL),
+                                      eDst.getRTMatrix(Extrinsics::REF_2_LOCAL)),
+            Extrinsics::REF_2_LOCAL);
 
-        //--- convert to rodruigez vector ---
-        return eRelativeSourceToDestination;
+      //--- convert to rodruigez vector ---
+      return eRelativeSourceToDestination;
     }
 
     /**
@@ -1207,18 +1188,18 @@ class Extrinsics
      */
     static void computeHomePose(Extrinsics ptPose, double pan, double tilt, Extrinsics& outHomePose)
     {
-        cv::Matx33d xCompensation = Rotation::createRotationX_rad(tilt);
-        cv::Matx33d yCompensation = Rotation::createRotationY_rad(pan);
-        cv::Matx33d zCompensation = Rotation::createRotationZ_rad(0.0);
+      cv::Matx33d xCompensation = Rotation::createRotationX_rad(tilt);
+      cv::Matx33d yCompensation = Rotation::createRotationY_rad(pan);
+      cv::Matx33d zCompensation = Rotation::createRotationZ_rad(0.0);
 
-        //--- combine rotations and invert ---
-        cv::Matx33d rotCompensation = (zCompensation * yCompensation * xCompensation).t();
+      //--- combine rotations and invert ---
+      cv::Matx33d rotCompensation = (zCompensation*yCompensation*xCompensation).t();
 
-        cv::Mat ptzNormalization = cv::Mat::eye(4, 4, CV_64F);
-        cv::Mat(rotCompensation).copyTo(ptzNormalization.colRange(0, 3).rowRange(0, 3));
+      cv::Mat ptzNormalization = cv::Mat::eye(4,4, CV_64F);
+      cv::Mat(rotCompensation).copyTo(ptzNormalization.colRange(0,3).rowRange(0,3));
 
-        // apply ptz normalization
-        outHomePose = Extrinsics(ptPose.getRTMatrix() * ptzNormalization);
+      // apply ptz normalization
+      outHomePose = Extrinsics(ptPose.getRTMatrix() * ptzNormalization);
     }
 
     /**
@@ -1226,35 +1207,38 @@ class Extrinsics
      */
     static void computePanTiltPose(Extrinsics homePose, double pan, double tilt, Extrinsics& outPTPose)
     {
-        cv::Matx33d xRot = Rotation::createRotationX_rad(tilt);
-        cv::Matx33d yRot = Rotation::createRotationY_rad(pan);
-        cv::Matx33d zRot = Rotation::createRotationZ_rad(0.0);
+      cv::Matx33d xRot = Rotation::createRotationX_rad(tilt);
+      cv::Matx33d yRot = Rotation::createRotationY_rad(pan);
+      cv::Matx33d zRot = Rotation::createRotationZ_rad(0.0);
 
-        //--- combine rotations ---
-        cv::Matx33d rotCompensation = (zRot * yRot * xRot);
+      //--- combine rotations ---
+      cv::Matx33d rotCompensation = (zRot * yRot * xRot);
 
-        cv::Mat ptzNormalization = cv::Mat::eye(4, 4, CV_64F);
-        cv::Mat(rotCompensation).copyTo(ptzNormalization.colRange(0, 3).rowRange(0, 3));
+      cv::Mat ptzNormalization = cv::Mat::eye(4,4, CV_64F);
+      cv::Mat(rotCompensation).copyTo(ptzNormalization.colRange(0,3).rowRange(0,3));
 
-        // apply ptz normalization
-        outPTPose = Extrinsics(homePose.getRTMatrix() * ptzNormalization);
+      // apply ptz normalization
+      outPTPose = Extrinsics(homePose.getRTMatrix() * ptzNormalization);
     }
 
   private:
+
     /**
      @brief Method to invert the Extrinsics
      */
     void invert()
     {
-        this->setRotationMat(this->getRotationMat().t());
-        this->setTranslationVec(-this->getRotationMat() * this->getTranslationVec());
+      this->setRotationMat(this->getRotationMat().t());
+      this->setTranslationVec(-this->getRotationMat() * this->getTranslationVec());
 
-        mTransfDirection = (mTransfDirection == LOCAL_2_REF) ? REF_2_LOCAL : LOCAL_2_REF;
+      mTransfDirection = (mTransfDirection == LOCAL_2_REF) ?
+            REF_2_LOCAL : LOCAL_2_REF;
     }
 
     //--- MEMBER DECLERATION ---//
 
   public:
+
     /// Translational part of the extrinsic camera parameters.
     Translation translation;
 
@@ -1262,6 +1246,7 @@ class Extrinsics
     Rotation rotation;
 
   private:
+
     /// Member variable holding the direction of transformation.
     ETransfDirection mTransfDirection;
 };

@@ -36,6 +36,10 @@
 #include "CalibrationConfigDialog.h"
 #include "CalibrationGuiBase.h"
 #include "GuiBase.h"
+#include "multisensor_calibration/calibration/CalibrationBase.h"
+#include "multisensor_calibration/guidance/GuidanceBase.h"
+
+#include <type_traits>
 
 namespace multisensor_calibration
 {
@@ -72,7 +76,8 @@ class MultiSensorCalibrationGui : public GuiBase
      * @brief Method to call the initialization routine. At the end of the routine the spin timer
      * is started to start the ROS spin loop.
      */
-    void init() override;
+    bool init(const std::shared_ptr<rclcpp::Executor>& ipExec,
+              const rclcpp::NodeOptions& iNodeOpts = rclcpp::NodeOptions()) override;
 
   private:
     /**
@@ -95,6 +100,14 @@ class MultiSensorCalibrationGui : public GuiBase
      */
     void runExtrinsicLidarReferenceCalibration();
 
+    template <typename CalibrationType, typename GuidanceType, typename GuiType>
+    typename std::enable_if<
+      std::is_base_of<CalibrationGuiBase, GuiType>::value &&
+        std::is_base_of<CalibrationBase, CalibrationType>::value &&
+        std::is_base_of<GuidanceBase, GuidanceBase>::value,
+      void>::type
+    runExtrinsicCalibration();
+
   private slots:
 
     /**
@@ -116,6 +129,17 @@ class MultiSensorCalibrationGui : public GuiBase
 
     /// Pointer to object of calibration gui
     std::shared_ptr<CalibrationGuiBase> pCalibrationGui_;
+
+    /// Pointer to object of calibration
+    std::shared_ptr<CalibrationBase> pCalibration_;
+    std::thread calibrationThread_;
+
+    /// Pointer to object of guidance
+    std::shared_ptr<GuidanceBase> pGuidance_;
+    std::thread guidanceThread_;
+
+    /// Node options
+    rclcpp::NodeOptions nodeOptions_;
 };
 
 } // namespace multisensor_calibration

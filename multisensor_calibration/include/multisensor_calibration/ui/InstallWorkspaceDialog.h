@@ -45,7 +45,7 @@ class InstallWorkspaceDialog;
 /**
  * @ingroup ui
  * @brief GUI dialog to install workspace templates.
- * This is part of the calibration configurator of the multisensor_calibration node.
+ * This is part of the calibration configurator of the multi_sensor_calibration node.
  *
  */
 class InstallWorkspaceDialog : public QDialog

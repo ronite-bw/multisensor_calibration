@@ -1,31 +1,3 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
-
 #ifndef LIB3D_FRAME_H
 #define LIB3D_FRAME_H
 
@@ -37,8 +9,8 @@
 #include <opencv2/core.hpp>
 
 // lib3D images
-#include "camera.hpp"
 #include "image.hpp"
+#include "camera.hpp"
 
 #define INPUT_IMAGE_KEY "input"
 #define UNDISTORTED_IMAGE_KEY "undistorted"
@@ -47,8 +19,7 @@
 #define CONFIDENCE_MAP_KEY "confidence"
 #define NORMAL_MAP_KEY "normal"
 
-namespace lib3d
-{
+namespace lib3d {
 
 /**
  @ingroup camera_geom image_types
@@ -64,22 +35,22 @@ namespace lib3d
  This class is templated with the precision of the data maps
  (T_PRECISION) and the number of channels corresponding to the input image (T_IMG_CHANNELS).
  */
-template <typename T_PRECISION, int T_IMG_CHANNELS>
+template<typename T_PRECISION, int T_IMG_CHANNELS>
 class Frame
 {
     //--- METHOD DECLERATION ---//
 
   public:
+
     /**
      Default constructor.
 
      This will initialize the name with "Frame_<seconds-since-epoch>".
      */
-    explicit Frame() :
-      mName("Frame_")
+    explicit Frame() : mName("Frame_")
     {
-        //--- append current time since epoch to frame name
-        mName.append(std::to_string(std::time(nullptr)));
+      //--- append current time since epoch to frame name
+      mName.append(std::to_string(std::time(nullptr)));
     }
 
     /**
@@ -87,34 +58,32 @@ class Frame
 
      Initializing the name with iName.
      */
-    explicit Frame(const std::string iName) :
-      mName(iName)
-    {
-    }
+    explicit Frame(const std::string iName) : mName(iName)
+    {}
 
     /**
      Destructor.
      */
     virtual ~Frame()
     {
-        //--- clear maps
-        mUcharImgs.clear();
-        mSingleChnDataMaps.clear();
-        mTripleChnDataMaps.clear();
+      //--- clear maps
+      mUcharImgs.clear();
+      mSingleChnDataMaps.clear();
+      mTripleChnDataMaps.clear();
     }
 
     /**
      @brief Copy assignment operator.
      This will make a deep copy of the content.
      */
-    Frame& operator=(const Frame& rhs)
+    Frame& operator= (const Frame& rhs)
     {
-        mName              = rhs.mName;
-        mCamera            = rhs.mCamera;
-        mUcharImgs         = rhs.mUcharImgs;
-        mSingleChnDataMaps = rhs.mSingleChnDataMaps;
-        mTripleChnDataMaps = rhs.mTripleChnDataMaps;
-        return *this;
+      mName = rhs.mName;
+      mCamera = rhs.mCamera;
+      mUcharImgs = rhs.mUcharImgs;
+      mSingleChnDataMaps = rhs.mSingleChnDataMaps;
+      mTripleChnDataMaps = rhs.mTripleChnDataMaps;
+      return *this;
     }
 
     /**
@@ -122,7 +91,7 @@ class Frame
      */
     std::string& name()
     {
-        return mName;
+      return mName;
     }
 
     /**
@@ -130,175 +99,175 @@ class Frame
      */
     Camera& camera()
     {
-        return mCamera;
+      return  mCamera;
     }
 
     /**
      Access input image by reference.
      If no input image exists yet, a new object is created.
      */
-    template <int ch = T_IMG_CHANNELS>
+    template<int ch = T_IMG_CHANNELS>
     typename std::enable_if<(ch == 1), GrayscaleImage&>::type inputImg()
     {
-        //--- if input image does not exist in map, create and insert
-        if (mUcharImgs.find(INPUT_IMAGE_KEY) == mUcharImgs.end())
-            mUcharImgs.insert(std::make_pair(INPUT_IMAGE_KEY, GrayscaleImage()));
+      //--- if input image does not exist in map, create and insert
+      if(mUcharImgs.find(INPUT_IMAGE_KEY) == mUcharImgs.end())
+        mUcharImgs.insert(std::make_pair(INPUT_IMAGE_KEY, GrayscaleImage()));
 
-        return static_cast<GrayscaleImage&>(mUcharImgs.at(INPUT_IMAGE_KEY));
+      return static_cast<GrayscaleImage&>(mUcharImgs.at(INPUT_IMAGE_KEY));
     }
 
     /**
      Access input image by reference.
      If no input image exists yet, a new object is created.
      */
-    template <int ch = T_IMG_CHANNELS>
+    template<int ch = T_IMG_CHANNELS>
     typename std::enable_if<(ch == 3), ColorImage&>::type inputImg()
     {
-        //--- if input image does not exist in map, create and insert
-        if (mUcharImgs.find(INPUT_IMAGE_KEY) == mUcharImgs.end())
-            mUcharImgs.insert(std::make_pair(INPUT_IMAGE_KEY, ColorImage()));
+      //--- if input image does not exist in map, create and insert
+      if(mUcharImgs.find(INPUT_IMAGE_KEY) == mUcharImgs.end())
+        mUcharImgs.insert(std::make_pair(INPUT_IMAGE_KEY, ColorImage()));
 
-        return static_cast<ColorImage&>(mUcharImgs.at(INPUT_IMAGE_KEY));
+      return static_cast<ColorImage&>(mUcharImgs.at(INPUT_IMAGE_KEY));
     }
 
     /**
      Access undistoted image by reference.
      If no undistoted image exists yet, a new object is created.
      */
-    template <int ch = T_IMG_CHANNELS>
+    template<int ch = T_IMG_CHANNELS>
     typename std::enable_if<(ch == 1), GrayscaleImage&>::type undistortedImg()
     {
-        //--- if undistorted image does not exist in map, create and insert
-        if (mUcharImgs.find(UNDISTORTED_IMAGE_KEY) == mUcharImgs.end())
-            mUcharImgs.insert(std::make_pair(UNDISTORTED_IMAGE_KEY, GrayscaleImage()));
+      //--- if undistorted image does not exist in map, create and insert
+      if(mUcharImgs.find(UNDISTORTED_IMAGE_KEY) == mUcharImgs.end())
+        mUcharImgs.insert(std::make_pair(UNDISTORTED_IMAGE_KEY, GrayscaleImage()));
 
-        return static_cast<GrayscaleImage&>(mUcharImgs.at(UNDISTORTED_IMAGE_KEY));
+      return static_cast<GrayscaleImage&>(mUcharImgs.at(UNDISTORTED_IMAGE_KEY));
     }
 
     /**
      Access undistoted image by reference.
      If no undistoted image exists yet, a new object is created.
      */
-    template <int ch = T_IMG_CHANNELS>
+    template<int ch = T_IMG_CHANNELS>
     typename std::enable_if<(ch == 3), ColorImage&>::type undistortedImg()
     {
-        //--- if undistorted image does not exist in map, create and insert
-        if (mUcharImgs.find(UNDISTORTED_IMAGE_KEY) == mUcharImgs.end())
-            mUcharImgs.insert(std::make_pair(UNDISTORTED_IMAGE_KEY, ColorImage()));
+      //--- if undistorted image does not exist in map, create and insert
+      if(mUcharImgs.find(UNDISTORTED_IMAGE_KEY) == mUcharImgs.end())
+        mUcharImgs.insert(std::make_pair(UNDISTORTED_IMAGE_KEY, ColorImage()));
 
-        return static_cast<ColorImage&>(mUcharImgs.at(UNDISTORTED_IMAGE_KEY));
+      return static_cast<ColorImage&>(mUcharImgs.at(UNDISTORTED_IMAGE_KEY));
     }
 
     /**
      Access disparity map by reference.
      If no disparity map exists yet, a new object is created.
      */
-    template <typename pr = T_PRECISION>
+    template<typename pr = T_PRECISION>
     typename std::enable_if<std::is_same<pr, float>::value, DisparityMap&>::type disparityMap()
     {
-        //--- if disparity map does not exist in map, create and insert
-        if (mSingleChnDataMaps.find(DISPARITY_MAP_KEY) == mSingleChnDataMaps.end())
-            mSingleChnDataMaps.insert(std::make_pair(DISPARITY_MAP_KEY, DisparityMap()));
+      //--- if disparity map does not exist in map, create and insert
+      if(mSingleChnDataMaps.find(DISPARITY_MAP_KEY) == mSingleChnDataMaps.end())
+        mSingleChnDataMaps.insert(std::make_pair(DISPARITY_MAP_KEY, DisparityMap()));
 
-        return static_cast<DisparityMap&>(mSingleChnDataMaps.at(DISPARITY_MAP_KEY));
+      return static_cast<DisparityMap&>(mSingleChnDataMaps.at(DISPARITY_MAP_KEY));
     }
 
     /**
      Access disparity map by reference.
      If no disparity map exists yet, a new object is created.
      */
-    template <typename pr = T_PRECISION>
+    template<typename pr = T_PRECISION>
     typename std::enable_if<std::is_same<pr, double>::value, DisparityMapD&>::type disparityMap()
     {
-        //--- if disparity map does not exist in map, create and insert
-        if (mSingleChnDataMaps.find(DISPARITY_MAP_KEY) == mSingleChnDataMaps.end())
-            mSingleChnDataMaps.insert(std::make_pair(DISPARITY_MAP_KEY, DisparityMapD()));
+      //--- if disparity map does not exist in map, create and insert
+      if(mSingleChnDataMaps.find(DISPARITY_MAP_KEY) == mSingleChnDataMaps.end())
+        mSingleChnDataMaps.insert(std::make_pair(DISPARITY_MAP_KEY, DisparityMapD()));
 
-        return static_cast<DisparityMapD&>(mSingleChnDataMaps.at(DISPARITY_MAP_KEY));
+      return static_cast<DisparityMapD&>(mSingleChnDataMaps.at(DISPARITY_MAP_KEY));
     }
 
     /**
      Access depth map by reference.
      If no depth map exists yet, a new object is created.
      */
-    template <typename pr = T_PRECISION>
+    template<typename pr = T_PRECISION>
     typename std::enable_if<std::is_same<pr, float>::value, DepthMap&>::type depthMap()
     {
-        //--- if depth map does not exist in map, create and insert
-        if (mSingleChnDataMaps.find(DEPTH_MAP_KEY) == mSingleChnDataMaps.end())
-            mSingleChnDataMaps.insert(std::make_pair(DEPTH_MAP_KEY, DepthMap()));
+      //--- if depth map does not exist in map, create and insert
+      if(mSingleChnDataMaps.find(DEPTH_MAP_KEY) == mSingleChnDataMaps.end())
+        mSingleChnDataMaps.insert(std::make_pair(DEPTH_MAP_KEY, DepthMap()));
 
-        return static_cast<DepthMap&>(mSingleChnDataMaps.at(DEPTH_MAP_KEY));
+      return static_cast<DepthMap&>(mSingleChnDataMaps.at(DEPTH_MAP_KEY));
     }
 
     /**
      Access depth map by reference.
      If no depth map exists yet, a new object is created.
      */
-    template <typename pr = T_PRECISION>
+    template<typename pr = T_PRECISION>
     typename std::enable_if<std::is_same<pr, double>::value, DepthMapD&>::type depthMap()
     {
-        //--- if depth map does not exist in map, create and insert
-        if (mSingleChnDataMaps.find(DEPTH_MAP_KEY) == mSingleChnDataMaps.end())
-            mSingleChnDataMaps.insert(std::make_pair(DEPTH_MAP_KEY, DepthMapD()));
+      //--- if depth map does not exist in map, create and insert
+      if(mSingleChnDataMaps.find(DEPTH_MAP_KEY) == mSingleChnDataMaps.end())
+        mSingleChnDataMaps.insert(std::make_pair(DEPTH_MAP_KEY, DepthMapD()));
 
-        return static_cast<DepthMapD&>(mSingleChnDataMaps.at(DEPTH_MAP_KEY));
+      return static_cast<DepthMapD&>(mSingleChnDataMaps.at(DEPTH_MAP_KEY));
     }
 
     /**
      Access confidence map by reference.
      If no confidence map exists yet, a new object is created.
      */
-    template <typename pr = T_PRECISION>
+    template<typename pr = T_PRECISION>
     typename std::enable_if<std::is_same<pr, float>::value, ConfidenceMap&>::type confidenceMap()
     {
-        //--- if confidence map does not exist in map, create and insert
-        if (mSingleChnDataMaps.find(CONFIDENCE_MAP_KEY) == mSingleChnDataMaps.end())
-            mSingleChnDataMaps.insert(std::make_pair(CONFIDENCE_MAP_KEY, ConfidenceMap()));
+      //--- if confidence map does not exist in map, create and insert
+      if(mSingleChnDataMaps.find(CONFIDENCE_MAP_KEY) == mSingleChnDataMaps.end())
+        mSingleChnDataMaps.insert(std::make_pair(CONFIDENCE_MAP_KEY, ConfidenceMap()));
 
-        return static_cast<ConfidenceMap&>(mSingleChnDataMaps.at(CONFIDENCE_MAP_KEY));
+      return static_cast<ConfidenceMap&>(mSingleChnDataMaps.at(CONFIDENCE_MAP_KEY));
     }
 
     /**
      Access confidence map by reference.
      If no confidence map exists yet, a new object is created.
      */
-    template <typename pr = T_PRECISION>
+    template<typename pr = T_PRECISION>
     typename std::enable_if<std::is_same<pr, double>::value, ConfidenceMapD&>::type confidenceMap()
     {
-        //--- if confidence map does not exist in map, create and insert
-        if (mSingleChnDataMaps.find(CONFIDENCE_MAP_KEY) == mSingleChnDataMaps.end())
-            mSingleChnDataMaps.insert(std::make_pair(CONFIDENCE_MAP_KEY, ConfidenceMapD()));
+      //--- if confidence map does not exist in map, create and insert
+      if(mSingleChnDataMaps.find(CONFIDENCE_MAP_KEY) == mSingleChnDataMaps.end())
+        mSingleChnDataMaps.insert(std::make_pair(CONFIDENCE_MAP_KEY, ConfidenceMapD()));
 
-        return static_cast<ConfidenceMapD&>(mSingleChnDataMaps.at(CONFIDENCE_MAP_KEY));
+      return static_cast<ConfidenceMapD&>(mSingleChnDataMaps.at(CONFIDENCE_MAP_KEY));
     }
 
     /**
      Access normal map by reference.
      If no normal map exists yet, a new object is created.
      */
-    template <typename pr = T_PRECISION>
+    template<typename pr = T_PRECISION>
     typename std::enable_if<std::is_same<pr, float>::value, NormalMap&>::type normalMap()
     {
-        //--- if normal map does not exist in map, create and insert
-        if (mTripleChnDataMaps.find(NORMAL_MAP_KEY) == mTripleChnDataMaps.end())
-            mTripleChnDataMaps.insert(std::make_pair(NORMAL_MAP_KEY, NormalMap()));
+      //--- if normal map does not exist in map, create and insert
+      if(mTripleChnDataMaps.find(NORMAL_MAP_KEY) == mTripleChnDataMaps.end())
+        mTripleChnDataMaps.insert(std::make_pair(NORMAL_MAP_KEY, NormalMap()));
 
-        return static_cast<NormalMap&>(mTripleChnDataMaps.at(NORMAL_MAP_KEY));
+      return static_cast<NormalMap&>(mTripleChnDataMaps.at(NORMAL_MAP_KEY));
     }
 
     /**
      Access normal map by reference.
      If no normal map exists yet, a new object is created.
      */
-    template <typename pr = T_PRECISION>
+    template<typename pr = T_PRECISION>
     typename std::enable_if<std::is_same<pr, double>::value, NormalMapD&>::type normalMap()
     {
-        //--- if normal map does not exist in map, create and insert
-        if (mTripleChnDataMaps.find(NORMAL_MAP_KEY) == mTripleChnDataMaps.end())
-            mTripleChnDataMaps.insert(std::make_pair(NORMAL_MAP_KEY, NormalMapD()));
+      //--- if normal map does not exist in map, create and insert
+      if(mTripleChnDataMaps.find(NORMAL_MAP_KEY) == mTripleChnDataMaps.end())
+        mTripleChnDataMaps.insert(std::make_pair(NORMAL_MAP_KEY, NormalMapD()));
 
-        return static_cast<NormalMapD&>(mTripleChnDataMaps.at(NORMAL_MAP_KEY));
+      return static_cast<NormalMapD&>(mTripleChnDataMaps.at(NORMAL_MAP_KEY));
     }
 
     /**
@@ -306,7 +275,7 @@ class Frame
      */
     bool containsInputImg() const
     {
-        return (mUcharImgs.find(INPUT_IMAGE_KEY) != mUcharImgs.end());
+      return (mUcharImgs.find(INPUT_IMAGE_KEY) != mUcharImgs.end());
     }
 
     /**
@@ -314,7 +283,7 @@ class Frame
      */
     bool containsUndistortedImg() const
     {
-        return (mUcharImgs.find(UNDISTORTED_IMAGE_KEY) != mUcharImgs.end());
+      return (mUcharImgs.find(UNDISTORTED_IMAGE_KEY) != mUcharImgs.end());
     }
 
     /**
@@ -322,7 +291,7 @@ class Frame
      */
     bool containsDisparityMap() const
     {
-        return (mSingleChnDataMaps.find(DISPARITY_MAP_KEY) != mSingleChnDataMaps.end());
+      return (mSingleChnDataMaps.find(DISPARITY_MAP_KEY) != mSingleChnDataMaps.end());
     }
 
     /**
@@ -330,7 +299,7 @@ class Frame
      */
     bool containsDepthMap() const
     {
-        return (mSingleChnDataMaps.find(DEPTH_MAP_KEY) != mSingleChnDataMaps.end());
+      return (mSingleChnDataMaps.find(DEPTH_MAP_KEY) != mSingleChnDataMaps.end());
     }
 
     /**
@@ -338,7 +307,7 @@ class Frame
      */
     bool containsConfidenceMap() const
     {
-        return (mSingleChnDataMaps.find(CONFIDENCE_MAP_KEY) != mSingleChnDataMaps.end());
+      return (mSingleChnDataMaps.find(CONFIDENCE_MAP_KEY) != mSingleChnDataMaps.end());
     }
 
     /**
@@ -346,7 +315,7 @@ class Frame
      */
     bool containsNormalMap() const
     {
-        return (mTripleChnDataMaps.find(NORMAL_MAP_KEY) != mTripleChnDataMaps.end());
+      return (mTripleChnDataMaps.find(NORMAL_MAP_KEY) != mTripleChnDataMaps.end());
     }
 
     /**
@@ -354,10 +323,10 @@ class Frame
      */
     void removeInputImg()
     {
-        typename std::map<std::string, Image<uchar, T_IMG_CHANNELS>>::iterator pos =
+      typename std::map<std::string,Image<uchar, T_IMG_CHANNELS>>::iterator pos =
           mUcharImgs.find(INPUT_IMAGE_KEY);
-        if (pos != mUcharImgs.end())
-            mUcharImgs.erase(pos);
+      if(pos != mUcharImgs.end())
+        mUcharImgs.erase(pos);
     }
 
     /**
@@ -365,10 +334,10 @@ class Frame
      */
     void removeUndistortedImg()
     {
-        typename std::map<std::string, Image<uchar, T_IMG_CHANNELS>>::iterator pos =
+      typename std::map<std::string,Image<uchar, T_IMG_CHANNELS>>::iterator pos =
           mUcharImgs.find(UNDISTORTED_IMAGE_KEY);
-        if (pos != mUcharImgs.end())
-            mUcharImgs.erase(pos);
+      if(pos != mUcharImgs.end())
+        mUcharImgs.erase(pos);
     }
 
     /**
@@ -376,10 +345,10 @@ class Frame
      */
     void removeDisparityMap()
     {
-        typename std::map<std::string, Image<T_PRECISION, 1>>::iterator pos =
+      typename std::map<std::string,Image<T_PRECISION, 1>>::iterator pos =
           mSingleChnDataMaps.find(DISPARITY_MAP_KEY);
-        if (pos != mSingleChnDataMaps.end())
-            mSingleChnDataMaps.erase(pos);
+      if(pos != mSingleChnDataMaps.end())
+        mSingleChnDataMaps.erase(pos);
     }
 
     /**
@@ -387,10 +356,10 @@ class Frame
      */
     void removeDepthMap()
     {
-        typename std::map<std::string, Image<T_PRECISION, 1>>::iterator pos =
+      typename std::map<std::string,Image<T_PRECISION, 1>>::iterator pos =
           mSingleChnDataMaps.find(DEPTH_MAP_KEY);
-        if (pos != mSingleChnDataMaps.end())
-            mSingleChnDataMaps.erase(pos);
+      if(pos != mSingleChnDataMaps.end())
+        mSingleChnDataMaps.erase(pos);
     }
 
     /**
@@ -398,10 +367,10 @@ class Frame
      */
     void removeConfidenceMap()
     {
-        typename std::map<std::string, Image<T_PRECISION, 1>>::iterator pos =
+      typename std::map<std::string,Image<T_PRECISION, 1>>::iterator pos =
           mSingleChnDataMaps.find(CONFIDENCE_MAP_KEY);
-        if (pos != mSingleChnDataMaps.end())
-            mSingleChnDataMaps.erase(pos);
+      if(pos != mSingleChnDataMaps.end())
+        mSingleChnDataMaps.erase(pos);
     }
 
     /**
@@ -409,29 +378,30 @@ class Frame
      */
     void removeNormalMap()
     {
-        typename std::map<std::string, Image<T_PRECISION, 3>>::iterator pos =
+      typename std::map<std::string,Image<T_PRECISION, 3>>::iterator pos =
           mTripleChnDataMaps.find(NORMAL_MAP_KEY);
-        if (pos != mTripleChnDataMaps.end())
-            mTripleChnDataMaps.erase(pos);
+      if(pos != mTripleChnDataMaps.end())
+        mTripleChnDataMaps.erase(pos);
     }
 
     //--- MEMBER DECLERATION
 
   protected:
+
     /// Name of the frame.
-    std::string mName;
+    std::string                     mName;
 
     /// Camera object of the frame.
-    Camera mCamera;
+    Camera                        mCamera;
 
     /// Map holding uchar images with T_IMG_CHANNELS, i.e. Input image, undistorted image ...
-    std::map<std::string, Image<uchar, T_IMG_CHANNELS>> mUcharImgs;
+    std::map<std::string,Image<uchar, T_IMG_CHANNELS>> mUcharImgs;
 
     /// Map holding single channel data maps with T_PRECISION per pixel, i.e. disparityMap, depthMap, confidenceMap ...
-    std::map<std::string, Image<T_PRECISION, 1>> mSingleChnDataMaps;
+    std::map<std::string,Image<T_PRECISION, 1>> mSingleChnDataMaps;
 
     /// Map holding triple channel data maps with T_PRECISION per pixel, i.e. normalMap ...
-    std::map<std::string, Image<T_PRECISION, 3>> mTripleChnDataMaps;
+    std::map<std::string,Image<T_PRECISION, 3>> mTripleChnDataMaps;
 };
 
 /// Frame with color input and single precision

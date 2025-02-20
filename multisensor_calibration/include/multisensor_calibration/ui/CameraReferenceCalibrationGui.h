@@ -92,10 +92,10 @@ class CameraReferenceCalibrationGui : public CalibrationGuiBase
 
   private:
     /// Node handle
-    using GuiBase::nh_;
+    using GuiBase::pNode_;
 
     /// calibration meta data
-    using CalibrationGuiBase::calibrationMetaData_;
+    using CalibrationGuiBase::pCalibrationMetaData_;
 
     /// Member pointer to dialog object used to visualize the placement guidance for the calibration
     /// target.

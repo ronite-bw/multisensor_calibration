@@ -1,32 +1,11 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+/***********************************************************************
+ *
+ *   Copyright (c) 2022 - 2024 Fraunhofer Institute of Optronics,
+ *   System Technologies and Image Exploitation IOSB
+ *
+ **********************************************************************/
 
-#include "../../include/multisensor_calibration/ui/CalibrationConfigDialog.h"
+#include "multisensor_calibration/ui/CalibrationConfigDialog.h"
 
 // Qt
 #include <QDebug>
@@ -35,7 +14,7 @@
 #include <QMessageBox>
 
 // multisensor_calibration
-#include "../../include/multisensor_calibration/config/Workspace.h"
+#include "multisensor_calibration/io/Workspace.h"
 #include "ui_CalibrationConfigDialog.h"
 
 QString ROOT_DIR_LABEL_TXT = "<html><head/><body><p>"
@@ -255,7 +234,8 @@ void CalibrationConfigDialog::accept()
     RobotWorkspace robotWs = RobotWorkspace((calibrationRootDir_.absolutePath() +
                                              QDir::separator() +
                                              wsFolderName)
-                                              .toStdString());
+                                              .toStdString(),
+                                            rclcpp::get_logger("RobotWorkspace"));
 
     //--- check if robot workspace is valid, i.e. already available.
     if (!robotWs.isValid())
@@ -311,7 +291,7 @@ ECalibrationType CalibrationConfigDialog::selectedCalibrationType() const
 void CalibrationConfigDialog::loadConfiguratorSettings()
 {
     pConfiguratorSettings_.reset(new QSettings("multisensor_calibration",
-                                               "multisensor_calibration"));
+                                               "multi_sensor_calibration"));
 
     resetCalibrationOptions();
 }
@@ -355,7 +335,7 @@ void CalibrationConfigDialog::resetCalibrationOptions()
 {
     if (pConfiguratorSettings_ == nullptr)
         pConfiguratorSettings_.reset(new QSettings("multisensor_calibration",
-                                                   "multisensor_calibration"));
+                                                   "multi_sensor_calibration"));
 
     //--- root dir path
     QString rootDirPath = pConfiguratorSettings_->value("calibration_root_dir",

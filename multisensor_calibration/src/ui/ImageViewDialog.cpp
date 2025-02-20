@@ -1,30 +1,9 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+/***********************************************************************
+ *
+ *   Copyright (c) 2022 - 2024 Fraunhofer Institute of Optronics,
+ *   System Technologies and Image Exploitation IOSB
+ *
+ **********************************************************************/
 
 #include "../../include/multisensor_calibration/ui/ImageViewDialog.h"
 
@@ -34,12 +13,11 @@
 #include <QMessageBox>
 
 // ROS
-#include <cv_bridge/cv_bridge.h>
-#include <ros/ros.h>
+#include <cv_bridge/cv_bridge.hpp>
 
 // multisensor_calibration
-#include "../../include/multisensor_calibration/common/lib3D/core/visualization.hpp"
 #include "ui_ViewDialog.h"
+#include <multisensor_calibration/common/lib3D/core/visualization.hpp>
 
 namespace multisensor_calibration
 {
@@ -67,7 +45,7 @@ ImageViewDialog::~ImageViewDialog()
 }
 
 //==================================================================================================
-void ImageViewDialog::imageMessageCallback(const InputImage_Message_T::ConstPtr& ipImgMsg)
+void ImageViewDialog::imageMessageCallback(const InputImage_Message_T::ConstSharedPtr& ipImgMsg)
 {
     //--- get image from message
     cv_bridge::CvImageConstPtr pCvBridgeImg;
@@ -77,10 +55,11 @@ void ImageViewDialog::imageMessageCallback(const InputImage_Message_T::ConstPtr&
     }
     catch (cv_bridge::Exception& e)
     {
-        ROS_ERROR("[%s] Exception while trying to convert image message."
-                  "\n\t> Possible cause: Subscription to raw (non-debayered) image stream."
-                  "\n\t> cv_bridge::Exception: %s",
-                  __PRETTY_FUNCTION__, e.what());
+        RCLCPP_ERROR(rclcpp::get_logger("multisensor_calibration::ImageViewDialog"),
+                     "Exception while trying to convert image message."
+                     "\n\t> Possible cause: Subscription to raw (non-debayered) image stream."
+                     "\n\t> cv_bridge::Exception: %s",
+                     e.what());
         return;
     }
 
@@ -105,12 +84,14 @@ void ImageViewDialog::imageMessageCallback(const InputImage_Message_T::ConstPtr&
 }
 
 //==================================================================================================
-void ImageViewDialog::subscribeToImageTopic(ros::NodeHandle& ioNh, const std::string& iTopicName)
+void ImageViewDialog::subscribeToImageTopic(rclcpp::Node* ipNode,
+                                            const std::string& iTopicName)
 {
-    image_transport::ImageTransport imgTransp(ioNh);
+    image_transport::ImageTransport imgTransp(ipNode->shared_from_this());
     imageSubsc_ =
-      imgTransp.subscribe(iTopicName, 10,
-                          boost::bind(&ImageViewDialog::imageMessageCallback, this, _1));
+      imgTransp.subscribe(iTopicName, 1,
+                          std::bind(&ImageViewDialog::imageMessageCallback, this,
+                                    std::placeholders::_1));
 }
 
 } // namespace multisensor_calibration

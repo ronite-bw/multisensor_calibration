@@ -1,32 +1,11 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+/***********************************************************************
+ *
+ *   Copyright (c) 2022 - 2024 Fraunhofer Institute of Optronics,
+ *   System Technologies and Image Exploitation IOSB
+ *
+ **********************************************************************/
 
-#include "../include/multisensor_calibration/ui/GuiBase.h"
+#include "../../include/multisensor_calibration/ui/GuiBase.h"
 
 // Qt
 #include <QCoreApplication>
@@ -35,13 +14,20 @@ namespace multisensor_calibration
 {
 
 //==================================================================================================
+GuiBase::GuiBase() :
+  QObject(nullptr)
+{
+}
+
+//==================================================================================================
 GuiBase::GuiBase(const std::string& iAppTitle,
                  const std::string& iGuiSubNamespace) :
-  QObject(),
+  QObject(nullptr),
   appTitle_(iAppTitle),
-  guiNodeName_(iAppTitle + "/" + iGuiSubNamespace),
+  guiNodeName_(iAppTitle + "_" + iGuiSubNamespace),
   isInitialized_(true),
-  pNodeletLoader_(nullptr)
+  pNode_(nullptr),
+  pExecutor_(nullptr)
 {
     //--- initialize spin timer
     spinTimer_.setInterval(100);
@@ -61,39 +47,51 @@ std::string GuiBase::getGuiNodeName() const
 }
 
 //==================================================================================================
-ros::NodeHandle& GuiBase::globalNodeHandle()
+rclcpp::Node* GuiBase::nodePtr() const
 {
-    return nh_;
+    return pNode_.get();
 }
 
 //==================================================================================================
-void GuiBase::init()
+rclcpp::Node::SharedPtr GuiBase::nodeSharedPtr() const
 {
-    //--- initialize ros node handles
-    nh_  = ros::NodeHandle();
-    pnh_ = ros::NodeHandle(guiNodeName_);
+    return pNode_;
+}
 
+//==================================================================================================
+rclcpp::Executor::SharedPtr GuiBase::executor() const
+{
+    return pExecutor_;
+}
+
+//==================================================================================================
+bool GuiBase::init(const std::shared_ptr<rclcpp::Executor>& ipExec,
+                   const rclcpp::NodeOptions& iNodeOpts)
+{
+    if (ipExec == nullptr)
+        return false;
+
+    //--- copy executor
+    pExecutor_ = ipExec;
+
+    //--- initialize ros node
+    pNode_ = std::make_shared<rclcpp::Node>(guiNodeName_, iNodeOpts);
+    if (pNode_ == nullptr)
+        return false;
+
+    pExecutor_->add_node(pNode_);
     spinTimer_.start();
-}
 
-//==================================================================================================
-ros::NodeHandle& GuiBase::privateNodeHandle()
-{
-    return pnh_;
-}
-
-//==================================================================================================
-void GuiBase::setNodeletLoaderPtr(std::shared_ptr<nodelet::Loader>& ipLoader)
-{
-    pNodeletLoader_ = ipLoader;
+    return true;
 }
 
 //==================================================================================================
 void GuiBase::spinOnce()
 {
-    ros::spinOnce();
+    if (!pExecutor_->is_spinning())
+        pExecutor_->spin_some(std::chrono::milliseconds(60));
 
-    if (!ros::ok())
+    if (!rclcpp::ok())
     {
         emit rosLoopTerminated();
         QCoreApplication::instance()->quit();

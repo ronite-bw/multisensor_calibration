@@ -37,6 +37,9 @@
 #include <pcl/correspondence.h>
 #include <pcl/point_cloud.h>
 
+// small_gicp
+#include <small_gicp/registration/registration_helper.hpp>
+
 // multisensor_calibration
 #include "ExtrinsicCalibrationBase.h"
 
@@ -131,6 +134,8 @@ class Extrinsic3d3dCalibrationBase
                   const double& rotationToleranceDegree   = 0.5,
                   const double& translationTolerance      = 0.001,
                   const double& downsamplingResolution    = 0.01);
+
+    using CalibrationBase::logger_;
 };
 
 } // namespace multisensor_calibration

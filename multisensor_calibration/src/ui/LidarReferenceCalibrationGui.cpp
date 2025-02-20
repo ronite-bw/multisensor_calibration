@@ -1,30 +1,9 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+/***********************************************************************
+ *
+ *   Copyright (c) 2022 - 2024 Fraunhofer Institute of Optronics,
+ *   System Technologies and Image Exploitation IOSB
+ *
+ **********************************************************************/
 
 #include "../include/multisensor_calibration/ui/LidarReferenceCalibrationGui.h"
 
@@ -40,13 +19,14 @@
 #include <QObject>
 
 // ROS
-#include <tf/tf.h>
+#include <tf2/utils.hpp>
 
 // multisensor_calibration
 #include "../../include/multisensor_calibration/common/utils.hpp"
 #include "../include/multisensor_calibration/common/common.h"
-#include <multisensor_calibration/SensorExtrinsics.h>
+#include <multisensor_calibration_interface/srv/sensor_extrinsics.hpp>
 
+using namespace multisensor_calibration_interface::srv;
 namespace multisensor_calibration
 {
 
@@ -73,15 +53,15 @@ void LidarReferenceCalibrationGui::initializeGuiContents()
     //--- initialize content of placement guidance dialog
     if (pPlacementGuidanceDialog_)
     {
-        pPlacementGuidanceDialog_->setFixedReferenceFrame((calibrationMetaData_.base_frame_id.empty())
-                                                            ? calibrationMetaData_.ref_frame_id
-                                                            : calibrationMetaData_.base_frame_id);
+        pPlacementGuidanceDialog_->setFixedReferenceFrame((pCalibrationMetaData_->base_frame_id.empty())
+                                                            ? pCalibrationMetaData_->ref_frame_id
+                                                            : pCalibrationMetaData_->base_frame_id);
         pPlacementGuidanceDialog_->addAxes();
-        pPlacementGuidanceDialog_->addRawSensorCloud(calibrationMetaData_.src_topic_name);
-        pPlacementGuidanceDialog_->addGuidedPlacementBox(guidanceNodeletName_ +
+        pPlacementGuidanceDialog_->addRawSensorCloud(pCalibrationMetaData_->src_topic_name);
+        pPlacementGuidanceDialog_->addGuidedPlacementBox(guidanceNodeName_ +
                                                          "/" + PLACEMENT_GUIDANCE_TOPIC_NAME);
 
-        if (calibrationMetaData_.base_frame_id.empty() == false)
+        if (pCalibrationMetaData_->base_frame_id.empty() == false)
             pPlacementGuidanceDialog_->setView(Rviz3dViewDialog::TOP_DOWN);
     }
 
@@ -89,24 +69,24 @@ void LidarReferenceCalibrationGui::initializeGuiContents()
     if (pSrcLidarTargetDialog_)
     {
         pSrcLidarTargetDialog_->setWindowTitle(
-          QString::fromStdString(calibrationMetaData_.src_sensor_name));
+          QString::fromStdString(pCalibrationMetaData_->src_sensor_name));
 
-        pSrcLidarTargetDialog_->setFixedReferenceFrame((calibrationMetaData_.base_frame_id.empty())
-                                                         ? calibrationMetaData_.src_frame_id
-                                                         : calibrationMetaData_.base_frame_id);
+        pSrcLidarTargetDialog_->setFixedReferenceFrame((pCalibrationMetaData_->base_frame_id.empty())
+                                                         ? pCalibrationMetaData_->src_frame_id
+                                                         : pCalibrationMetaData_->base_frame_id);
         pSrcLidarTargetDialog_->addAxes();
-        pSrcLidarTargetDialog_->addRawSensorCloud(calibrationMetaData_.src_topic_name);
+        pSrcLidarTargetDialog_->addRawSensorCloud(pCalibrationMetaData_->src_topic_name);
         pSrcLidarTargetDialog_
-          ->addRegionsOfInterestCloud(calibratorNodeletName_ +
-                                      "/" + calibrationMetaData_.src_sensor_name +
+          ->addRegionsOfInterestCloud(calibratorNodeName_ +
+                                      "/" + pCalibrationMetaData_->src_sensor_name +
                                       "/" + ROIS_CLOUD_TOPIC_NAME);
         pSrcLidarTargetDialog_
-          ->addCalibTargetCloud(calibratorNodeletName_ +
-                                "/" + calibrationMetaData_.src_sensor_name +
+          ->addCalibTargetCloud(calibratorNodeName_ +
+                                "/" + pCalibrationMetaData_->src_sensor_name +
                                 "/" + TARGET_PATTERN_CLOUD_TOPIC_NAME);
         pSrcLidarTargetDialog_
-          ->addMarkerCornersCloud(calibratorNodeletName_ +
-                                  "/" + calibrationMetaData_.src_sensor_name +
+          ->addMarkerCornersCloud(calibratorNodeName_ +
+                                  "/" + pCalibrationMetaData_->src_sensor_name +
                                   "/" + MARKER_CORNERS_TOPIC_NAME);
     }
 
@@ -114,8 +94,8 @@ void LidarReferenceCalibrationGui::initializeGuiContents()
     if (pRefObservationDialog_)
     {
         pRefObservationDialog_->setWindowTitle(
-          QString::fromStdString(calibrationMetaData_.ref_sensor_name));
-        pRefObservationDialog_->setSensorName(calibrationMetaData_.ref_sensor_name);
+          QString::fromStdString(pCalibrationMetaData_->ref_sensor_name));
+        pRefObservationDialog_->setSensorName(pCalibrationMetaData_->ref_sensor_name);
     }
 
     //--- hide progress dialog
@@ -143,7 +123,7 @@ bool LidarReferenceCalibrationGui::setupGuiElements()
     if (!pPlacementGuidanceDialog_)
         return false;
     pPlacementGuidanceDialog_->setWindowTitle("Target Placement Guidance");
-    pPlacementGuidanceDialog_->move(screenGeometry_.width() / 2, 0);
+    pPlacementGuidanceDialog_->move(screenGeometry_.topLeft() + QPoint(screenGeometry_.width() / 2, 0));
     pPlacementGuidanceDialog_->setFixedSize((screenGeometry_.width() / 2) - 1,
                                             (screenGeometry_.height() / 2) - titleBarHeight_ - 1);
     pCalibControlWindow_->attachPlacementGuidanceDialog(pPlacementGuidanceDialog_.get());
@@ -154,7 +134,7 @@ bool LidarReferenceCalibrationGui::setupGuiElements()
     if (!pSrcLidarTargetDialog_)
         return false;
     pSrcLidarTargetDialog_->setWindowTitle("Source LiDAR Target Detections");
-    pSrcLidarTargetDialog_->move(0, (screenGeometry_.height() / 2) + (2 * titleBarHeight_));
+    pSrcLidarTargetDialog_->move(screenGeometry_.topLeft() + QPoint(0, (screenGeometry_.height() / 2) + (2 * titleBarHeight_)));
     pSrcLidarTargetDialog_->setFixedSize((screenGeometry_.width() / 2) - 1,
                                          (screenGeometry_.height() / 2) - titleBarHeight_ - 1);
 
@@ -167,8 +147,8 @@ bool LidarReferenceCalibrationGui::setupGuiElements()
     if (!pRefObservationDialog_)
         return false;
     pRefObservationDialog_->setWindowTitle("Reference");
-    pRefObservationDialog_->move(screenGeometry_.width() / 2,
-                                 (screenGeometry_.height() / 2) + (2 * titleBarHeight_));
+    pRefObservationDialog_->move(screenGeometry_.topLeft() + QPoint(screenGeometry_.width() / 2,
+                                                                    (screenGeometry_.height() / 2) + (2 * titleBarHeight_)));
     pRefObservationDialog_->setFixedSize((screenGeometry_.width() / 2) - 1,
                                          (screenGeometry_.height() / 2) - titleBarHeight_ - 1);
     pCalibControlWindow_->attachReferenceDialog(pRefObservationDialog_.get());

@@ -40,34 +40,37 @@
 #include <QSettings>
 
 // ROS
-#include <ros/publisher.h>
-#include <ros/ros.h>
-#include <ros/timer.h>
-#include <tf/transform_listener.h>
+#include <rcl_interfaces/msg/set_parameters_result.hpp>
+#include <rclcpp/node_interfaces/node_parameters_interface.hpp>
+#include <rclcpp/publisher.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp/service.hpp>
+#include <rclcpp/timer.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 #include <urdf/model.h>
 
 // Tiny XML
 #include <tinyxml2.h>
 
 // multisensor_calibration
-#include "../common/common.h"
-#include "../common/lib3D/core/extrinsics.hpp"
-#include "../config/Workspace.h"
-#include "../data_processing/CameraDataProcessor.h"
-#include "../data_processing/LidarDataProcessor.h"
-#include <multisensor_calibration/CaptureCalibTarget.h>
-#include <multisensor_calibration/FinalizeCalibration.h>
-#include <multisensor_calibration/ResetCalibration.h>
+#include "multisensor_calibration/common/common.h"
+#include "multisensor_calibration/io/Workspace.h"
+#include <multisensor_calibration/common/lib3D/core/extrinsics.hpp>
+#include <multisensor_calibration_interface/srv/capture_calib_target.hpp>
+#include <multisensor_calibration_interface/srv/finalize_calibration.hpp>
+#include <multisensor_calibration_interface/srv/reset_calibration.hpp>
 
-namespace fs = std::filesystem;
+namespace fs     = std::filesystem;
+namespace interf = multisensor_calibration_interface;
 
 namespace multisensor_calibration
 {
 
 /**
  * @ingroup calibration
- * @brief Base class of all calibration nodelets. This holds a common interface to all calibration
- * nodelets.
+ * @brief Base class of all calibration nodes. This holds a common interface to all calibration
+ * nodes.
  */
 class CalibrationBase
 {
@@ -92,23 +95,26 @@ class CalibrationBase
 
   protected:
     /**
-     * @brief Create and start the calibration workflow.
-     *
-     * This will initialize the timers that trigger the different stages within the workflow.
-     * After initialization the first stage (i.e. loading of the robot workspace) is triggered.
-     *
-     * @param[in, out] ioNh Reference to node handle
+     * @brief Initialize and start calibration.
+
+     * @param[in, out] ipNode Pointer to node.
      * @return True, if successful. False otherwise.
      */
-    bool createAndStartCalibrationWorkflow(ros::NodeHandle& ioNh);
+    bool initializeAndStartSensorCalibration(rclcpp::Node* ipNode);
+
+    /**
+     * @brief Initialize TF listener.
+     *
+     * @param[in] ipNode Pointer to node.
+     */
+    void initializeTfListener(rclcpp::Node* ipNode);
 
     /**
      * @brief Finalize calibration.
      *
-     * This is purely virtual and intended as an interface. It needs to be implemented by all
-     * classes that are to be instantiated. In this, the final calibration should be calculated.
+     * @return True, if successful. False, otherwise.
      */
-    virtual void finalizeCalibration() = 0;
+    virtual bool finalizeCalibration() = 0;
 
     /**
      * @brief Initialize data processing, i.e. the objects that will process the sensor data and
@@ -116,30 +122,30 @@ class CalibrationBase
      *
      * @return True, if all settings are valid. False, otherwise.
      */
-    virtual bool initializeDataProcessors();
+    virtual bool initializeDataProcessors() = 0;
 
     /**
      * @brief Initialize publishers.
      *
-     * @param[in, out] ioNh Reference to node handle
+     * @param[in, out] ipNode Pointer to node.
      * @return True, if successful. False otherwise.
      */
-    virtual bool initializePublishers(ros::NodeHandle& ioNh);
+    virtual bool initializePublishers(rclcpp::Node* ipNode) = 0;
 
     /**
      * @brief Initialize services.
      *
-     * @param[in, out] ioNh Reference to node handle
+     * @param[in, out] ipNode Pointer to node.
      * @return True, if successful. False otherwise.
      */
-    virtual bool initializeServices(ros::NodeHandle& ioNh);
+    virtual bool initializeServices(rclcpp::Node* ipNode);
 
     /**
-     * @brief Initialize subscribers. Purely virtual.
+     * @brief Initialize subscribers.
      *
      * @return True, if all settings are valid. False, otherwise.
      */
-    virtual bool initializeSubscribers(ros::NodeHandle& ioNh) = 0;
+    virtual bool initializeSubscribers(rclcpp::Node* ipNode) = 0;
 
     /**
      * @brief Initialize workspace objects. In this class, i.e. the calibration base class, only the
@@ -165,15 +171,51 @@ class CalibrationBase
     virtual bool saveCalibrationSettingsToWorkspace();
 
     /**
+     * @brief Setup launch parameters.
+     *
+     * The implementation within this class hold launch parameters that are common to all
+     * calibration nodes.
+     *
+     * @param[in] ipNode Pointer to node.
+     */
+    virtual void setupLaunchParameters(rclcpp::Node* ipNode) const;
+
+    /**
+     * @brief Setup dynamic parameters.
+     *
+     * @param[in] ipNode Pointer to node.
+     */
+    virtual void setupDynamicParameters(rclcpp::Node* ipNode) const = 0;
+
+    /**
      * @brief Read launch parameters.
      *
      * The implementation within this class hold launch parameters that are common to all
-     * calibration nodelets, e.g. robot_ws_path, target_config_file.
+     * calibration nodes, e.g. robot_ws_path, target_config_file.
      *
-     * @param[in] iNh Object of node handle
+     * @param[in] ipNode Pointer to node.
      * @return True if successful. False, otherwise (e.g. if sanity check fails)
      */
-    virtual bool readLaunchParameters(const ros::NodeHandle& iNh);
+    virtual bool readLaunchParameters(const rclcpp::Node* ipNode);
+
+    /**
+     * @brief Handle dynamic change of parameters. For example, through rqt_reconfigure.
+     *
+     * This loops through the list of parameters in iParameters and sets their value accordingly.
+     *
+     * @param[in] iParameters Parameters that have changed.
+     */
+    rcl_interfaces::msg::SetParametersResult handleDynamicParameterChange(
+      const std::vector<rclcpp::Parameter>& iParameters);
+
+    /**
+     * @brief Virtual function to set dynamic parameter. This is called from
+     * handleDynamicParameterChange for each parameter in the list that is to be changed.
+     *
+     * @param[in] iParameter Parameter that is to be changed.
+     * @return True, if successful, i.e. if it has been changed. False, otherwise.
+     */
+    virtual bool setDynamicParameter(const rclcpp::Parameter& iParameter);
 
     /**
      * @brief Read numeric launch parameter with given name ('iParamName') and default
@@ -184,7 +226,7 @@ class CalibrationBase
      * @return Parameter value.
      */
     template <typename T>
-    T readNumericLaunchParameter(const ros::NodeHandle& iNh,
+    T readNumericLaunchParameter(const rclcpp::Node* ipNode,
                                  const std::string& iParamName,
                                  const T& iDefaultVal,
                                  const T& iMinVal,
@@ -199,7 +241,7 @@ class CalibrationBase
      *
      * @return Parameter value.
      */
-    std::string readStringLaunchParameter(const ros::NodeHandle& iNh,
+    std::string readStringLaunchParameter(const rclcpp::Node* ipNode,
                                           const std::string& iParamName,
                                           const std::string& iDefaultVal = "") const;
 
@@ -209,68 +251,60 @@ class CalibrationBase
     virtual void reset();
 
     /**
-     * @brief Shutdown subscribers and disconnect callbacks. Purely virtual.
+     * @brief Shutdown subscribers and disconnect callbacks.
      *
      * @return True, if successful. False, otherwise.
      */
     virtual bool shutdownSubscribers() = 0;
 
     /**
-     * @brief Save calibration. Purely virtual.
+     * @brief Save calibration.
+     *
+     * @return True, if successful. False, otherwise.
      */
-    virtual void saveCalibration() = 0;
+    virtual bool saveCalibration() = 0;
 
   private:
     /**
-     * @brief Initialize timers that will trigger the different steps within the calibration
-     * workflow.
+     * @brief Load of calibration workspace.
      *
-     * @param[in, out] ioNh Reference to node handle
-     * @return True, if successful. False otherwise.
+     * @return True, if successful.
      */
-    bool initializeTimers(ros::NodeHandle& ioNh);
+    bool loadCalibrationWorkspace();
 
     /**
-     * @brief Response method when finalization of calibration is triggered.
-     * Intended to be called by ros::Timer.
+     * @brief Load of robot workspace.
+     *
+     * @return True, if successful.
      */
-    void onFinalizeCalibrationTriggered(const ros::TimerEvent&);
+    bool loadRobotWorkspace();
 
     /**
-     * @brief Response method when loading of calibration workspace is triggered.
-     * Intended to be called by ros::Timer.
+     * @brief Load of robot urdf model.
+     *
+     * @return True, if successful.
      */
-    void onLoadCalibrationWorkspaceTriggered(const ros::TimerEvent&);
-
-    /**
-     * @brief Response method when loading of robot workspace is triggered.
-     * Intended to be called by ros::Timer.
-     */
-    void onLoadRobotWorkspaceTriggered(const ros::TimerEvent&);
-
-    /**
-     * @brief Response method when loading of robot urdf model is triggered.
-     * Intended to be called by ros::Timer.
-     */
-    void onLoadRobotUrdfModelTriggered(const ros::TimerEvent&);
+    bool loadRobotUrdfModel();
 
     /**
      * @brief Service call to request finalization of calibration
      *
-     * @param[in] iReq Request, with flag to finalize calibration
-     * @param[out] oRes Response, empty.
+     * @param[in] ipReq Request, with flag to finalize calibration
+     * @param[out] opRes Response, empty.
      */
-    bool onRequestCalibrationFinalization(multisensor_calibration::FinalizeCalibration::Request& iReq,
-                                          multisensor_calibration::FinalizeCalibration::Response& oRes);
+    bool onRequestCalibrationFinalization(
+      const std::shared_ptr<interf::srv::FinalizeCalibration::Request> ipReq,
+      std::shared_ptr<interf::srv::FinalizeCalibration::Response> opRes);
 
     /**
      * @brief Service call to request capturing of calibration target
      *
-     * @param[in] iReq Request, with flag to capture calibration target
-     * @param[out] oRes Response, empty.
+     * @param[in] ipReq Request, with flag to capture calibration target
+     * @param[out] opRes Response, empty.
      */
-    bool onRequestTargetCapture(multisensor_calibration::CaptureCalibTarget::Request& iReq,
-                                multisensor_calibration::CaptureCalibTarget::Response& oRes);
+    bool onRequestTargetCapture(
+      const std::shared_ptr<interf::srv::CaptureCalibTarget::Request> ipReq,
+      std::shared_ptr<interf::srv::CaptureCalibTarget::Response> opRes);
 
     /**
      * @brief Service call to request reset of calibration
@@ -278,14 +312,9 @@ class CalibrationBase
      * @param[in] iReq Request, empty
      * @param[out] oRes Response.
      */
-    bool onReset(multisensor_calibration::ResetCalibration::Request& iReq,
-                 multisensor_calibration::ResetCalibration::Response& oRes);
-
-    /**
-     * @brief Response method when starting of sensor calibration is triggered.
-     * Intended to be called by ros::Timer.
-     */
-    void onStartSensorCalibrationTriggered(const ros::TimerEvent&);
+    bool onReset(
+      const std::shared_ptr<interf::srv::ResetCalibration::Request> ipReq,
+      std::shared_ptr<interf::srv::ResetCalibration::Response> opRes);
 
     /**
      * @brief Method to read robot specific settings from settings file within robot workspace.
@@ -300,35 +329,32 @@ class CalibrationBase
     /// Type of calibration.
     ECalibrationType type_;
 
-    /// Name of nodelet.
-    std::string nodeletName_;
-
-    /// Flag indicating if nodelet is initialized.
+    /// Flag indicating if node is initialized.
     bool isInitialized_;
+
+    /// Logger object of node.
+    rclcpp::Logger logger_;
 
     /// Mutex guarding the data processing.
     std::mutex dataProcessingMutex_;
 
-    /// Global node handler.
-    ros::NodeHandle nh_;
+    /// Callback handle to adjust parameters
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr pParameterCallbackHandle_;
 
-    /// Private node handler.
-    ros::NodeHandle pnh_;
+    /// TF buffer needed for listener
+    std::unique_ptr<tf2_ros::Buffer> tfBuffer_;
 
     /// Transform listener to get transform between the two sensor frames.
-    tf::TransformListener tfListener_;
+    std::shared_ptr<tf2_ros::TransformListener> tfListener_;
 
-    /// Object to publish calibration result.
-    ros::Publisher calibResultPub_;
+    /// Pointer to service to request capturing of calibration target.
+    rclcpp::Service<interf::srv::CaptureCalibTarget>::SharedPtr pCaptureSrv_;
 
-    /// Server to provide service to request capturing of calibration target.
-    ros::ServiceServer captureSrv_;
+    /// Pointer to service to request finalization of calibration.
+    rclcpp::Service<interf::srv::FinalizeCalibration>::SharedPtr pFinalizeSrv_;
 
-    /// Server to provide service to request finalization of calibration.
-    ros::ServiceServer finalizeSrv_;
-
-    /// Server to provide service to reset calibration.
-    ros::ServiceServer resetSrv_;
+    /// Pointer to service to reset calibration.
+    rclcpp::Service<interf::srv::ResetCalibration>::SharedPtr pResetSrv_;
 
     /// Absolute path to robot workspace.
     fs::path robotWsPath_;
@@ -356,31 +382,11 @@ class CalibrationBase
     bool saveObservationsToWs_;
 
     /// Pointer to base calibration workspace. The instantiation of the pointer is done in the
-    /// individual calibration nodelet.
+    /// individual calibration node.
     std::shared_ptr<AbstractWorkspace> pCalibrationWs_;
 
     /// Path to target configuration file
     fs::path calibTargetFilePath_;
-
-    /// Object of timer to call routine to load robot workspace.
-    /// The timer will be initialized as trigger with a period of 0.5seconds and a one-shot policy.
-    ros::Timer loadRobotWsTrigger_;
-
-    /// Object of timer to call routine to load URDF model of robot.
-    /// The timer will be initialized as trigger with a period of 0.5seconds and a one-shot policy.
-    ros::Timer loadUrdfModelTrigger_;
-
-    /// Object of timer to call routine to load calibration workspace.
-    /// The timer will be initialized as trigger with a period of 0.5seconds and a one-shot policy.
-    ros::Timer loadCalibrationWsTrigger_;
-
-    /// Object of timer to call routine to start sensor calibration.
-    /// The timer will be initialized as trigger with a period of 0.5seconds and a one-shot policy.
-    ros::Timer startSensorCalibrationTrigger_;
-
-    /// Object of timer to call routine to finalize calibration.
-    /// The timer will be initialized as trigger with a period of 0.5seconds and a one-shot policy.
-    ros::Timer finalizeCalibrationTrigger_;
 
     /// Flag to capture calibration target in next sensor data package.
     bool captureCalibrationTarget_;

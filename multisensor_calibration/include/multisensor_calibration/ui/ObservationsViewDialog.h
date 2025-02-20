@@ -35,7 +35,9 @@
 #include <vector>
 
 // ROS
-#include <tf/transform_listener.h>
+#include <rclcpp/rclcpp.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 // Qt
 #include <QAbstractButton>
@@ -81,6 +83,13 @@ class ObservationsViewDialog : public QDialog
      */
     void setSensorName(const std::string& name);
 
+    /**
+     * @brief Initialize TF listener.
+     *
+     * @param[in] ipNode Pointer to node.
+     */
+    void initializeTfListener(rclcpp::Node* ipNode);
+
   private slots:
 
     /**
@@ -109,8 +118,11 @@ class ObservationsViewDialog : public QDialog
     /// Pointer to UI
     Ui::ObservationsViewDialog* pUi_;
 
-    /// Transform listener to get transform between the two sensor frames
-    tf::TransformListener tfListener_;
+    /// TF buffer needed for listener
+    std::unique_ptr<tf2_ros::Buffer> tfBuffer_;
+
+    /// Transform listener to get transform between the two sensor frames.
+    std::shared_ptr<tf2_ros::TransformListener> tfListener_;
 
     /// Sensor name with which the output dialog is associated with.
     std::string sensorName_;

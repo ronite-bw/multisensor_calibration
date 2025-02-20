@@ -1,31 +1,3 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
-
 #ifndef LIB3D_VIS_RANGE_IMG_H
 #define LIB3D_VIS_RANGE_IMG_H
 
@@ -263,7 +235,7 @@ inline cv::Mat qimage2cvMat_shared(const QImage& img, MatColorOrder* order = 0)
     default:
         return cv::Mat();
     }
-    return cv::Mat(img.height(), img.width(), CV_8UC(img.depth() / 8), const_cast<uchar*>(img.bits()), img.bytesPerLine());
+    return cv::Mat(img.height(), img.width(), CV_8UC(img.depth() / 8), (uchar*)img.bits(), img.bytesPerLine());
 }
 
 /**
@@ -605,37 +577,37 @@ inline cv::Mat normalizeRangeImg(const cv::Mat iRangeImg, cv::Mat& oNaThresholdM
         colorizedRangeImg /= (maxVal - minVal);
 
         if (iopMinRange)
-            *iopMinRange = static_cast<float>(minVal);
+            *iopMinRange = minVal;
         if (iopMaxRange)
-            *iopMaxRange = static_cast<float>(maxVal);
+            *iopMaxRange = maxVal;
     }
     //--- minDepth != -1, maxDepth = -1 -> use given min, use max of depth map ---
-    else if (iopMinRange && std::fabs(*iopMinRange - -1.f) >= 0.0001f &&
-             (!iopMaxRange || std::fabs(*iopMaxRange - -1.f) < 0.0001f))
+    else if (iopMinRange && std::fabs(*iopMinRange - -1.f) >= 0.0001 &&
+             (!iopMaxRange || std::fabs(*iopMaxRange - -1.f) < 0.0001))
     {
         // get mask of pixels that are below minVal
         cv::threshold(iRangeImg, oMinThresholdMask, *iopMinRange, 1., cv::THRESH_BINARY_INV);
         oMinThresholdMask.convertTo(oMinThresholdMask, CV_8UC1);
 
         colorizedRangeImg -= *iopMinRange;
-        colorizedRangeImg /= (static_cast<float>(maxVal) - *iopMinRange);
+        colorizedRangeImg /= (maxVal - *iopMinRange);
 
         if (iopMaxRange)
-            *iopMaxRange = static_cast<float>(maxVal);
+            *iopMaxRange = maxVal;
     }
     //--- minDepth = -1, maxDepth != -1 -> use given max, use min of depth map ---
-    else if (iopMaxRange && std::fabs(*iopMaxRange - -1.f) >= 0.0001f &&
-             (!iopMinRange || std::fabs(*iopMinRange - -1.f) < 0.0001f))
+    else if (iopMaxRange && std::fabs(*iopMaxRange - -1.f) >= 0.0001 &&
+             (!iopMinRange || std::fabs(*iopMinRange - -1.f) < 0.0001))
     {
         // get mask of pixels that are above maxVal
         cv::threshold(iRangeImg, oMaxThresholdMask, *iopMaxRange, 1., cv::THRESH_BINARY);
         oMaxThresholdMask.convertTo(oMaxThresholdMask, CV_8UC1);
 
         colorizedRangeImg -= minVal;
-        colorizedRangeImg /= (*iopMaxRange - static_cast<float>(minVal));
+        colorizedRangeImg /= (*iopMaxRange - minVal);
 
         if (iopMinRange)
-            *iopMinRange = static_cast<float>(minVal);
+            *iopMinRange = minVal;
     }
     //--- minDepth != -1, maxDepth != -1 -> use given min and max ---
     else

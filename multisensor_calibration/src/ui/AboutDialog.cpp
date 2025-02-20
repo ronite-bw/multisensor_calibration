@@ -26,8 +26,6 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include "../../include/multisensor_calibration/ui/AboutDialog.h"
-
 // Std
 #include <iostream>
 #include <regex>
@@ -43,7 +41,8 @@
 // PCL
 #include <pcl/pcl_config.h>
 
-// multisensor_calibration
+// Multisensor Calibration
+#include "multisensor_calibration/ui/AboutDialog.h"
 #include "ui_AboutDialog.h"
 
 namespace multisensor_calibration

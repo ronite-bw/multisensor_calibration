@@ -36,6 +36,7 @@
 #include "CalibrationGuiBase.h"
 #include "ImageViewDialog.h"
 #include "Rviz3dViewDialog.h"
+#include "multisensor_calibration/visualizers/PointCloud2PointCloudDistance.h"
 
 namespace multisensor_calibration
 {
@@ -91,10 +92,10 @@ class LidarLidarCalibrationGui : public CalibrationGuiBase
 
   private:
     /// Node handle
-    using GuiBase::nh_;
+    using GuiBase::pNode_;
 
     /// calibration meta data
-    using CalibrationGuiBase::calibrationMetaData_;
+    using CalibrationGuiBase::pCalibrationMetaData_;
 
     /// Member pointer to dialog object used to visualize the placement guidance for the calibration
     /// target.
@@ -108,6 +109,9 @@ class LidarLidarCalibrationGui : public CalibrationGuiBase
 
     /// Member pointer to dialog object used to visualize the calibration by means of sensor fusion.
     std::shared_ptr<Rviz3dViewDialog> pFusionDialog_;
+
+    // Pointer to the visualization node. Loaded dynamically
+    visualizers::PointCloud2PointCloudDistanceNode::SharedPtr pVisualizerNode_;
 };
 
 } // namespace multisensor_calibration

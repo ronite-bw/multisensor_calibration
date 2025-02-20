@@ -32,27 +32,26 @@
 // Std
 #include <memory>
 #include <string>
-#include <tuple>
+
+// ROS
+#include <tf2/LinearMath/Transform.h>
 
 // PCL
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
 // multisensor_calibration
-#include "../data_processing/CameraDataProcessor.h"
-#include "../data_processing/LidarDataProcessor.h"
-#include "../data_processing/ReferenceDataProcessor3d.h"
 #include "CalibrationBase.h"
-#include <multisensor_calibration/CalibrationMetaData.h>
-#include <multisensor_calibration/RemoveLastObservation.h>
-#include <multisensor_calibration/SensorExtrinsics.h>
+#include <multisensor_calibration_interface/srv/calibration_meta_data.hpp>
+#include <multisensor_calibration_interface/srv/remove_last_observation.hpp>
+#include <multisensor_calibration_interface/srv/sensor_extrinsics.hpp>
 
 namespace multisensor_calibration
 {
 
 /**
  * @ingroup calibration
- * @brief Base class of all extrinsic calibration nodelets.
+ * @brief Base class of all extrinsic calibration nodes.
  *
  * @tparam SrcDataProcessorT Class to process data from source sensor.
  * @tparam RefDataProcessorT Class to process data from reference sensor.
@@ -84,10 +83,10 @@ class ExtrinsicCalibrationBase : public CalibrationBase
         std::string baseFrameId;
 
         /// Translation of extrinsic transformation.
-        tf::Vector3 XYZ;
+        tf2::Vector3 XYZ;
 
         /// Roll, Pitch, Yaw of extrinsic transformation.
-        tf::Vector3 RPY;
+        tf2::Vector3 RPY;
     };
 
     /**
@@ -107,7 +106,7 @@ class ExtrinsicCalibrationBase : public CalibrationBase
 
         /// Standard Deviation in XYZ and RPY of target poses when transformed between sensor
         /// frames. In this, the RPY angles are given in degrees.
-        std::pair<tf::Vector3, tf::Vector3> target_poses_stdDev;
+        std::pair<tf2::Vector3, tf2::Vector3> target_poses_stdDev;
 
         /// Print out calibration results to string.
         std::string toString() const;
@@ -120,8 +119,8 @@ class ExtrinsicCalibrationBase : public CalibrationBase
             calibrations.resize(1);
 
             target_poses_stdDev =
-              std::make_pair(tf::Vector3(NAN, NAN, NAN),
-                             tf::Vector3(NAN, NAN, NAN));
+              std::make_pair(tf2::Vector3(NAN, NAN, NAN),
+                             tf2::Vector3(NAN, NAN, NAN));
         }
     };
 
@@ -145,47 +144,67 @@ class ExtrinsicCalibrationBase : public CalibrationBase
     virtual ~ExtrinsicCalibrationBase();
 
   protected:
-    using CalibrationBase::createAndStartCalibrationWorkflow;
+    using CalibrationBase::initializeAndStartSensorCalibration;
+
+    /**
+     * @brief Initialize publishers. Purely virtual.
+     *
+     * @param[in, out] ipNode Pointer to node.
+     * @return True, if successful. False otherwise.
+     */
+    virtual bool initializePublishers(rclcpp::Node* ipNode) override;
 
     /**
      * @brief Method to initialize services. This overrides the CalibrationBase::initializeServices.
      * In this, the method from the base class is also called.
      *
-     * @param[in, out] ioNh Reference to node handle
+     * @param[in, out] ipNode Pointer to node.
      * @return True, if successful. False otherwise.
      */
-    virtual bool initializeServices(ros::NodeHandle& ioNh);
+    virtual bool initializeServices(rclcpp::Node* ipNode) override;
 
     /**
      * @brief Handle call requesting calibration meta data.
      *
-     * @param[in] iReq Request
-     * @param[out] oRes Response.
+     * @param[in] ipReq Request
+     * @param[out] opRes Response.
      */
     bool onRequestCalibrationMetaData(
-      multisensor_calibration::CalibrationMetaData::Request& iReq,
-      multisensor_calibration::CalibrationMetaData::Response& oRes);
+      const std::shared_ptr<interf::srv::CalibrationMetaData::Request> ipReq,
+      std::shared_ptr<interf::srv::CalibrationMetaData::Response> opRes);
 
     /**
      * @brief Handle call requesting removal of last observation. This is a pure virtual definition
      * and needs to be implemented in a subclass.
      *
-     * @param[in] iReq Request, with flag to capture calibration target
-     * @param[out] oRes Response, empty.
+     * @param[in] ipReq Request, with flag to capture calibration target
+     * @param[out] opRes Response, empty.
      */
     virtual bool onRequestRemoveObservation(
-      multisensor_calibration::RemoveLastObservation::Request& iReq,
-      multisensor_calibration::RemoveLastObservation::Response& oRes) = 0;
+      const std::shared_ptr<interf::srv::RemoveLastObservation::Request> ipReq,
+      std::shared_ptr<interf::srv::RemoveLastObservation::Response> oRes) = 0;
 
     /**
      * @brief Handling call requesting sensor extrinsics.
      *
-     * @param[in] iReq Request, empty.
+     * @param[in] ipReq Request, empty.
      * @param[out] oRes Response.
      */
     virtual bool onRequestSensorExtrinsics(
-      multisensor_calibration::SensorExtrinsics::Request& iReq,
-      multisensor_calibration::SensorExtrinsics::Response& oRes);
+      const std::shared_ptr<interf::srv::SensorExtrinsics::Request> ipReq,
+      std::shared_ptr<interf::srv::SensorExtrinsics::Response> oRes);
+
+    /**
+     * @brief Publish given sensor extrinsics as calibration result.
+     *
+     * @param[in] iSensorExtrinsics Sensor extrinsics to publish.
+     */
+    void publishCalibrationResult(const lib3d::Extrinsics& iSensorExtrinsics) const;
+
+    /**
+     * @brief Publish las sensor extrinsics in sensorExtrinsics_ as calibration result.
+     */
+    void publishLastCalibrationResult() const;
 
     /**
      * @brief Save calibration settings to setting.ini inside calibration workspace.
@@ -198,18 +217,28 @@ class ExtrinsicCalibrationBase : public CalibrationBase
     bool saveCalibrationSettingsToWorkspace() override;
 
     /**
+     * @brief Setup launch parameters.
+     *
+     * The implementation within this class hold launch parameters that are common to all
+     * calibration nodes.
+     *
+     * @param[in] ipNode Pointer to node.
+     */
+    void setupLaunchParameters(rclcpp::Node* ipNode) const override;
+
+    /**
      * @brief Read launch parameters.
      *
      * This overrides CalibrationBase::readLaunchParameters. In this, the method of
      * the parent class is also called.
      *
      * The implementation within this class hold launch parameters that are common to all
-     * calibration nodelets, e.g. robot_ws_path, target_config_file.
+     * calibration nodes, e.g. robot_ws_path, target_config_file.
      *
-     * @param[in] iNh Object of node handle
+     * @param[in] ipNode Pointer to node.
      * @return True if successful. False, otherwise (e.g. if sanity check fails)
      */
-    bool readLaunchParameters(const ros::NodeHandle& iNh) override;
+    bool readLaunchParameters(const rclcpp::Node* ipNode) override;
 
     /**
      * @brief Method to remove all observations that were captured during the given calibration
@@ -261,7 +290,7 @@ class ExtrinsicCalibrationBase : public CalibrationBase
      * This overrides CalibrationBase::saveCalibration. In this, the method of
      * the parent class is also called.
      */
-    void saveCalibration() override;
+    bool saveCalibration() override;
 
     /**
      * @brief Method to save the calibration into the URDF model.
@@ -314,21 +343,24 @@ class ExtrinsicCalibrationBase : public CalibrationBase
      * @param[in] iRefTargetPoses Target poses detected in reference sensor.
      * @return The standard deviation of the target poses in XYZ (in meters) and RPY (in degrees).
      */
-    std::pair<tf::Vector3, tf::Vector3> computeTargetPoseStdDev(
+    std::pair<tf2::Vector3, tf2::Vector3> computeTargetPoseStdDev(
       const std::vector<lib3d::Extrinsics>& iSrcTargetPoses,
       const std::vector<lib3d::Extrinsics>& iRefTargetPoses) const;
 
     //--- MEMBER DECLARATION ---/
 
   protected:
-    /// Server to provide service to remove last observation
-    ros::ServiceServer removeObsSrv_;
+    /// Pointert to publish calibration result.
+    rclcpp::Publisher<CalibrationResult_Message_T>::SharedPtr pCalibResultPub_;
 
-    /// Server to provide service to request calibration meta data
-    ros::ServiceServer calibMetaDataSrv_;
+    /// Pointer to service to remove last observation
+    rclcpp::Service<interf::srv::RemoveLastObservation>::SharedPtr pRemoveObsSrv_;
 
-    /// Server to provide service to request sensor extrinsics
-    ros::ServiceServer sensorExtrinsicsSrv_;
+    /// Pointer to service to request calibration meta data
+    rclcpp::Service<interf::srv::CalibrationMetaData>::SharedPtr pCalibMetaDataSrv_;
+
+    /// Pointer to service to request sensor extrinsics
+    rclcpp::Service<interf::srv::SensorExtrinsics>::SharedPtr pSensorExtrinsicsSrv_;
 
     /// Pointer to data processor of source sensor.
     std::shared_ptr<SrcDataProcessorT> pSrcDataProcessor_;

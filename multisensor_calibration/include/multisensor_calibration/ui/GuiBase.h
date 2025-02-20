@@ -34,8 +34,8 @@
 #include <string>
 
 // ROS
-#include <nodelet/loader.h>
-#include <ros/ros.h>
+#include <rclcpp/executors.hpp>
+#include <rclcpp/rclcpp.hpp>
 
 // Qt
 #include <QObject>
@@ -46,8 +46,7 @@ namespace multisensor_calibration
 
 /**
  * @ingroup ui
- * @brief Base class of all GUIs. This implements a common interface to all GUIs, e.g. init(),
- * setNodeletLoaderPtr().
+ * @brief Base class of all GUIs. This implements a common interface to all GUIs, e.g. init().
  *
  */
 class GuiBase : public QObject
@@ -56,13 +55,15 @@ class GuiBase : public QObject
 
     //--- METHOD DECLARATION ---//
   public:
+    GuiBase();
+
     /**
      * @brief Default constructor.
      *
      * @param[in] iAppTitle Application title.
      * @param[in] iGuiSubNamespace Sub namespace of the gui.
      */
-    GuiBase(const std::string& iAppTitle, const std::string& iGuiSubNamespace);
+    explicit GuiBase(const std::string& iAppTitle, const std::string& iGuiSubNamespace);
 
     /**
      * @brief Destructor
@@ -75,28 +76,21 @@ class GuiBase : public QObject
     std::string getGuiNodeName() const;
 
     /**
-     * @brief Constant reference to global node handle.
+     * @brief Pointer to node.
      */
-    ros::NodeHandle& globalNodeHandle();
+    rclcpp::Node* nodePtr() const;
+    rclcpp::Node::SharedPtr nodeSharedPtr() const;
+    rclcpp::Executor::SharedPtr executor() const;
 
     /**
      * @brief Method to call the initialization routine. At the end of the routine the spin timer
      * is started to start the ROS spin loop.
-     */
-    virtual void init();
-
-    /**
-     * @brief Constant reference to private node handle.
-     */
-    ros::NodeHandle& privateNodeHandle();
-
-    /**
-     * @brief Method to set pointer to nodelet loader.
      *
-     * @note This will not acquire ownership, thus the instance of the loader needs to be deleted
-     * outside.
+     * @param[in] ipExec Pointer to executor.
+     * @param[in] iNodeOpts Options for ros node wihtin gui.
      */
-    virtual void setNodeletLoaderPtr(std::shared_ptr<nodelet::Loader>& ipLoader);
+    virtual bool init(const std::shared_ptr<rclcpp::Executor>& ipExec,
+                      const rclcpp::NodeOptions& iNodeOpts = rclcpp::NodeOptions());
 
     /**
      * @brief Method spinning ROS event loop once. This is connected to the spinTimer_.
@@ -119,20 +113,17 @@ class GuiBase : public QObject
     /// Name of the GUI node
     std::string guiNodeName_;
 
-    /// Flag indicating if nodelet is initialized.
+    /// Flag indicating if node is initialized.
     bool isInitialized_;
 
     /// Global node handler.
-    ros::NodeHandle nh_;
+    std::shared_ptr<rclcpp::Node> pNode_;
 
-    /// Private node handler.
-    ros::NodeHandle pnh_;
+    /// Pointer to node loader to load further nodes
+    std::shared_ptr<rclcpp::Executor> pExecutor_;
 
-    /// Pointer to nodelet loader to load further nodelets
-    std::shared_ptr<nodelet::Loader> pNodeletLoader_;
-
-    /// QTimer object to trigger ros spins. This needs to be a QTimer, since the event loop runs in
-    /// Qt.
+    /// QTimer object to trigger ros spins. This needs to be a QTimer,
+    /// since the event loop runs inQt.
     QTimer spinTimer_;
 };
 

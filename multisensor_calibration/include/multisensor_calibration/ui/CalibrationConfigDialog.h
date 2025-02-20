@@ -38,8 +38,7 @@
 #include <Qt>
 
 // ROS
-#include <ros/node_handle.h>
-#include <rosgraph_msgs/Log.h>
+#include <rcl_interfaces/msg/log.hpp>
 
 // multisensor_calibration
 #include "../common/common.h"
@@ -61,7 +60,7 @@ class CalibrationConfigDialog;
  * @ingroup ui
  * @brief Calibration configuration dialog.
  *
- * This is the main dialog which is instantiated, when running the 'multisensor_calibration' node.
+ * This is the main dialog which is instantiated, when running the 'multi_sensor_calibration' node.
  *
  */
 class CalibrationConfigDialog : public QDialog

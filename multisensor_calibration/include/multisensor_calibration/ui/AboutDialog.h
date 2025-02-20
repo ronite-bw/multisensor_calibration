@@ -37,10 +37,6 @@
 #include <QSettings>
 #include <Qt>
 
-// ROS
-#include <ros/node_handle.h>
-#include <rosgraph_msgs/Log.h>
-
 // multisensor_calibration
 #include "../common/common.h"
 #include "ExtrinsicCameraLidarConfigWidget.h"

@@ -1,38 +1,26 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+/***********************************************************************
+ *
+ *   Copyright (c) 2022 - 2024 Fraunhofer Institute of Optronics,
+ *   System Technologies and Image Exploitation IOSB
+ *
+ **********************************************************************/
 
-#include "../include/multisensor_calibration/calibration/ExtrinsicCalibrationBase.h"
+#include "../../include/multisensor_calibration/calibration/ExtrinsicCalibrationBase.h"
+
+// Std
+#include <fstream>
+
+// ROS
+#include <geometry_msgs/msg/transform_stamped.hpp>
 
 // PCL
 #include <pcl/common/io.h>
 
 // multisensor_calibration
-#include "../include/multisensor_calibration/common/utils.hpp"
+#include "../../include/multisensor_calibration/common/utils.hpp"
+#include "../../include/multisensor_calibration/sensor_data_processing/CameraDataProcessor.h"
+#include "../../include/multisensor_calibration/sensor_data_processing/LidarDataProcessor.h"
+#include "../../include/multisensor_calibration/sensor_data_processing/ReferenceDataProcessor3d.h"
 
 namespace multisensor_calibration
 {
@@ -42,6 +30,10 @@ template <class SrcDataProcessorT, class RefDataProcessorT>
 ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
   ExtrinsicCalibrationBase(ECalibrationType type) :
   CalibrationBase(type),
+  pCalibResultPub_(nullptr),
+  pRemoveObsSrv_(nullptr),
+  pCalibMetaDataSrv_(nullptr),
+  pSensorExtrinsicsSrv_(nullptr),
   pSrcDataProcessor_(nullptr),
   pRefDataProcessor_(nullptr),
   srcSensorName_(""),
@@ -64,26 +56,40 @@ ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::~ExtrinsicCalibr
 
 //==================================================================================================
 template <class SrcDataProcessorT, class RefDataProcessorT>
+bool ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::initializePublishers(
+  rclcpp::Node* ipNode)
+{
+    pCalibResultPub_ = ipNode->create_publisher<CalibrationResult_Message_T>(
+      "~/" + CALIB_RESULT_TOPIC_NAME, 10);
+
+    return true;
+}
+
+//==================================================================================================
+template <class SrcDataProcessorT, class RefDataProcessorT>
 bool ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::initializeServices(
-  ros::NodeHandle& ioNh)
+  rclcpp::Node* ipNode)
 {
     //--- call parent method
-    bool isSuccessful = CalibrationBase::initializeServices(ioNh);
+    bool isSuccessful = CalibrationBase::initializeServices(ipNode);
 
     //--- remove last observation
-    removeObsSrv_ = ioNh.advertiseService(
-      REMOVE_OBSERVATION_SRV_NAME,
-      &ExtrinsicCalibrationBase::onRequestRemoveObservation, this);
+    pRemoveObsSrv_ = ipNode->create_service<interf::srv::RemoveLastObservation>(
+      "~/" + REMOVE_OBSERVATION_SRV_NAME,
+      std::bind(&ExtrinsicCalibrationBase::onRequestRemoveObservation, this,
+                std::placeholders::_1, std::placeholders::_2));
 
     //--- calibration meta data
-    calibMetaDataSrv_ = ioNh.advertiseService(
-      REQUEST_META_DATA_SRV_NAME,
-      &ExtrinsicCalibrationBase::onRequestCalibrationMetaData, this);
+    pCalibMetaDataSrv_ = ipNode->create_service<interf::srv::CalibrationMetaData>(
+      "~/" + REQUEST_META_DATA_SRV_NAME,
+      std::bind(&ExtrinsicCalibrationBase::onRequestCalibrationMetaData, this,
+                std::placeholders::_1, std::placeholders::_2));
 
     //--- sensor extrinsics
-    sensorExtrinsicsSrv_ = ioNh.advertiseService(
-      REQUEST_SENSOR_EXTRINSICS_SRV_NAME,
-      &ExtrinsicCalibrationBase::onRequestSensorExtrinsics, this);
+    pSensorExtrinsicsSrv_ = ipNode->create_service<interf::srv::SensorExtrinsics>(
+      "~/" + REQUEST_SENSOR_EXTRINSICS_SRV_NAME,
+      std::bind(&ExtrinsicCalibrationBase::onRequestSensorExtrinsics, this,
+                std::placeholders::_1, std::placeholders::_2));
 
     return isSuccessful;
 }
@@ -91,44 +97,44 @@ bool ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::initializeS
 //==================================================================================================
 template <class SrcDataProcessorT, class RefDataProcessorT>
 bool ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::onRequestCalibrationMetaData(
-  multisensor_calibration::CalibrationMetaData::Request& iReq,
-  multisensor_calibration::CalibrationMetaData::Response& oRes)
+  const std::shared_ptr<interf::srv::CalibrationMetaData::Request> ipReq,
+  std::shared_ptr<interf::srv::CalibrationMetaData::Response> opRes)
 {
-    UNUSED_VAR(iReq);
+    UNUSED_VAR(ipReq);
 
     if (!isInitialized_)
         return false;
 
-    oRes.calib_type = static_cast<int>(type_);
+    opRes->calib_type = static_cast<int>(type_);
 
-    oRes.robot_ws_path = (fs::exists(pRobotWs_->getPath()))
-                           ? pRobotWs_->getPath().string()
-                           : "";
-    oRes.calib_ws_path = (fs::exists(pCalibrationWs_->getPath()))
-                           ? pCalibrationWs_->getPath().string()
-                           : "";
+    opRes->robot_ws_path = (fs::exists(pRobotWs_->getPath()))
+                             ? pRobotWs_->getPath().string()
+                             : "";
+    opRes->calib_ws_path = (fs::exists(pCalibrationWs_->getPath()))
+                             ? pCalibrationWs_->getPath().string()
+                             : "";
 
-    oRes.calib_target_file_path = calibTargetFilePath_;
+    opRes->calib_target_file_path = calibTargetFilePath_;
 
-    oRes.src_sensor_name = srcSensorName_;
-    oRes.src_topic_name  = srcTopicName_;
-    oRes.src_frame_id    = srcFrameId_;
+    opRes->src_sensor_name = srcSensorName_;
+    opRes->src_topic_name  = srcTopicName_;
+    opRes->src_frame_id    = srcFrameId_;
 
-    oRes.ref_sensor_name = refSensorName_;
-    oRes.ref_topic_name  = refTopicName_;
-    oRes.ref_frame_id    = refFrameId_;
+    opRes->ref_sensor_name = refSensorName_;
+    opRes->ref_topic_name  = refTopicName_;
+    opRes->ref_frame_id    = refFrameId_;
 
-    oRes.base_frame_id = baseFrameId_;
+    opRes->base_frame_id = baseFrameId_;
 
-    oRes.isComplete = (!oRes.robot_ws_path.empty() &&
-                       !oRes.calib_ws_path.empty() &&
-                       !oRes.calib_target_file_path.empty() &&
-                       !oRes.src_sensor_name.empty() &&
-                       !oRes.src_topic_name.empty() &&
-                       !oRes.src_frame_id.empty() &&
-                       !oRes.ref_sensor_name.empty() &&
-                       !oRes.ref_topic_name.empty() &&
-                       !oRes.ref_frame_id.empty());
+    opRes->is_complete = (!opRes->robot_ws_path.empty() &&
+                          !opRes->calib_ws_path.empty() &&
+                          !opRes->calib_target_file_path.empty() &&
+                          !opRes->src_sensor_name.empty() &&
+                          !opRes->src_topic_name.empty() &&
+                          !opRes->src_frame_id.empty() &&
+                          !opRes->ref_sensor_name.empty() &&
+                          !opRes->ref_topic_name.empty() &&
+                          !opRes->ref_frame_id.empty());
 
     return true;
 }
@@ -136,44 +142,79 @@ bool ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::onRequestCa
 //==================================================================================================
 template <class SrcDataProcessorT, class RefDataProcessorT>
 bool ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::onRequestSensorExtrinsics(
-  multisensor_calibration::SensorExtrinsics::Request& iReq,
-  multisensor_calibration::SensorExtrinsics::Response& oRes)
+  const std::shared_ptr<interf::srv::SensorExtrinsics::Request> ipReq,
+  std::shared_ptr<interf::srv::SensorExtrinsics::Response> opRes)
 {
-    //--- get empty or last sensor extrinsics and convert into tf::Transform
+    //--- get empty or last sensor extrinsics and convert into tf2::Transform
     lib3d::Extrinsics extrinsics = (sensorExtrinsics_.empty())
                                      ? lib3d::Extrinsics()
                                      : sensorExtrinsics_.back();
 
-    tf::Transform ref2LocalTransform;
+    tf2::Transform ref2LocalTransform;
     utils::setTfTransformFromCameraExtrinsics(extrinsics, ref2LocalTransform);
 
     //--- transform ref2LocalTransform into request extrinsic type
-    tf::StampedTransform tmpTransform;
-    if (iReq.extrinsic_type == SensorExtrinsics::Request::SENSOR_2_SENSOR &&
+    if (ipReq->extrinsic_type == interf::srv::SensorExtrinsics::Request::SENSOR_2_SENSOR &&
         !baseFrameId_.empty())
     {
+        geometry_msgs::msg::TransformStamped t;
         try
         {
             //--- look up the transform from refFrameId to baseFrameId since, the inverse from
             //--- baseFrameId to refFrameId is required.
-            tfListener_.lookupTransform(baseFrameId_, refFrameId_,
-                                        ros::Time(0), tmpTransform);
+            t = tfBuffer_->lookupTransform(baseFrameId_, refFrameId_,
+                                           tf2::TimePointZero);
         }
-        catch (tf::TransformException& ex)
+        catch (tf2::TransformException& ex)
         {
-            ROS_ERROR("[%s]"
-                      "\n\t> tf::TransformException: %s",
-                      nodeletName_.c_str(), ex.what());
+            RCLCPP_ERROR(logger_, "tf2::TransformException: %s",
+                         ex.what());
             return false;
         }
 
+        tf2::Transform tmpTransform(tf2::Quaternion(t.transform.rotation.x,
+                                                    t.transform.rotation.y,
+                                                    t.transform.rotation.z,
+                                                    t.transform.rotation.w),
+                                    tf2::Vector3(t.transform.translation.x,
+                                                 t.transform.translation.y,
+                                                 t.transform.translation.z));
         ref2LocalTransform *= tmpTransform;
     }
 
     //--- construct response
-    utils::cvtTfTransform2GeometryPose(ref2LocalTransform, oRes.extrinsics);
+    utils::cvtTfTransform2GeometryPose(ref2LocalTransform, opRes->extrinsics);
 
     return true;
+}
+
+//==================================================================================================
+template <class SrcDataProcessorT, class RefDataProcessorT>
+void ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
+  publishCalibrationResult(const lib3d::Extrinsics& iSensorExtrinsics) const
+{
+    // message publishing calibration result
+    interf::msg::CalibrationResult calibResultMsg;
+
+    calibResultMsg.is_successful = true;
+
+    calibResultMsg.src_frame_id  = srcFrameId_;
+    calibResultMsg.ref_frame_id  = refFrameId_;
+    calibResultMsg.base_frame_id = baseFrameId_;
+
+    tf2::Transform ref2LocalTransform;
+    utils::setTfTransformFromCameraExtrinsics(iSensorExtrinsics, ref2LocalTransform);
+    utils::cvtTfTransform2GeometryTransform(ref2LocalTransform.inverse(), calibResultMsg.sensor_extrinsics);
+
+    pCalibResultPub_->publish(calibResultMsg);
+}
+
+//==================================================================================================
+template <class SrcDataProcessorT, class RefDataProcessorT>
+void ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
+  publishLastCalibrationResult() const
+{
+    publishCalibrationResult(sensorExtrinsics_.back());
 }
 
 //==================================================================================================
@@ -201,18 +242,47 @@ bool ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
 
 //==================================================================================================
 template <class SrcDataProcessorT, class RefDataProcessorT>
-bool ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::readLaunchParameters(
-  const ros::NodeHandle& iNh)
+void ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::setupLaunchParameters(
+  rclcpp::Node* ipNode) const
 {
-    if (!CalibrationBase::readLaunchParameters(iNh))
+    CalibrationBase::setupLaunchParameters(ipNode);
+
+    //--- base frame id
+    auto baseFrameIdDesc = rcl_interfaces::msg::ParameterDescriptor{};
+    baseFrameIdDesc.description =
+      "If specified, the extrinsic pose will be calculated with respect to frame of the given "
+      "frame ID. This does not change the frame ID of the reference sensor, i.e. the LiDAR sensor, "
+      "but will perform an a posteriori transformation of the estimated extrinsic pose into the "
+      "specified frame. If not specified, or left empty, the extrinsic pose will be calculated "
+      "with respect to the frame of the reference sensor.\n"
+      "Default: \"\"";
+    baseFrameIdDesc.read_only = true;
+    ipNode->declare_parameter<std::string>("base_frame_id", "", baseFrameIdDesc);
+
+    //--- use TF-Tree as initial guess
+    auto initialGuessDesc = rcl_interfaces::msg::ParameterDescriptor{};
+    initialGuessDesc.description =
+      "Option to use an initial guess on the extrinsic sensor pose from the TF-tree, "
+      "if available.\n"
+      "Default: true";
+    initialGuessDesc.read_only = true;
+    ipNode->declare_parameter<bool>("use_initial_guess", true, initialGuessDesc);
+}
+
+//==================================================================================================
+template <class SrcDataProcessorT, class RefDataProcessorT>
+bool ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::readLaunchParameters(
+  const rclcpp::Node* ipNode)
+{
+    if (!CalibrationBase::readLaunchParameters(ipNode))
         return false;
 
     //--- base frame id
     baseFrameId_ =
-      readStringLaunchParameter(iNh, "base_frame_id", "");
+      readStringLaunchParameter(ipNode, "base_frame_id", "");
 
     //--- use TF-Tree as initial guess
-    iNh.param<bool>("use_initial_guess", useTfTreeAsInitialGuess_, false);
+    useTfTreeAsInitialGuess_ = ipNode->get_parameter("use_initial_guess").as_bool();
 
     return true;
 }
@@ -234,7 +304,8 @@ void ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
     typename std::vector<Pose_T>::iterator firstPose;        // start position of pose to remove
     bool isStartPosSet = false;
     bool isEndPosSet   = false;
-    int startIdIdx, endIdIdx; // index of start and end element of ids to remove
+    int startIdIdx     = 0,
+        endIdIdx       = 0; // index of start and end element of ids to remove
 
     //--- find start and end position of ids that are to be removed.
     for (typename std::set<Id_T>::iterator idItr = ioIds.begin();
@@ -381,19 +452,18 @@ void ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::reset()
 
 //==================================================================================================
 template <class SrcDataProcessorT, class RefDataProcessorT>
-void ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::saveCalibration()
+bool ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::saveCalibration()
 {
     //--- save results to calibration workspace
     if (!saveResultsToCalibrationWorkspace())
     {
-        ROS_WARN("[%s] Something went wrong while writing results to calibration workspace."
-                 "\n\t> Workspace: %s",
-                 nodeletName_.c_str(), pCalibrationWs_->getPath().string().c_str());
+        RCLCPP_WARN(logger_, "Something went wrong while writing results to calibration workspace. "
+                             "Workspace: %s",
+                    pCalibrationWs_->getPath().string().c_str());
     }
     else
     {
-        ROS_INFO("[%s] Writing results to calibration workspace: Successful!",
-                 nodeletName_.c_str());
+        RCLCPP_INFO(logger_, "Writing results to calibration workspace: Successful!");
     }
 
     //--- save to URDF model
@@ -401,32 +471,28 @@ void ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::saveCalibra
     {
         if (!isFrameIdInUrdfModel(srcFrameId_))
         {
-            ROS_WARN("[%s]"
-                     "\n\t> Source Frame ID is not available as link in the URDF model file."
-                     "\n\t> Results are not written to URDF model file."
-                     "\n\t> Frame ID: %s",
-                     nodeletName_.c_str(), srcFrameId_.c_str());
+            RCLCPP_WARN(logger_, "Source Frame ID is not available as link in the URDF model file. "
+                                 "Results are not written to URDF model file. "
+                                 "Frame ID: %s",
+                        srcFrameId_.c_str());
         }
         else if (!isFrameIdInUrdfModel((!baseFrameId_.empty()) ? baseFrameId_ : refFrameId_))
         {
-            ROS_WARN("[%s]"
-                     "\n\t> Base/Reference Frame ID is not available as link in the URDF model file."
-                     "\n\t> Results are not written to URDF model file."
-                     "\n\t> Frame ID: %s",
-                     nodeletName_.c_str(),
-                     (!baseFrameId_.empty()) ? baseFrameId_.c_str() : refFrameId_.c_str());
+            RCLCPP_WARN(logger_,
+                        "Base/Reference Frame ID is not available as link in the URDF model file. "
+                        "Results are not written to URDF model file. "
+                        "Frame ID: %s",
+                        (!baseFrameId_.empty()) ? baseFrameId_.c_str() : refFrameId_.c_str());
         }
         else if (!saveCalibrationToUrdfModel())
         {
-            ROS_WARN("[%s]"
-                     "\n\t> Something went wrong while writing results to URDF model file."
-                     "\n\t> URDF model file: %s",
-                     nodeletName_.c_str(), urdfModelPath_.string().c_str());
+            RCLCPP_WARN(logger_, "Something went wrong while writing results to URDF model file. "
+                                 "URDF model file: %s",
+                        urdfModelPath_.string().c_str());
         }
         else
         {
-            ROS_INFO("[%s] Writing results to URDF model file: Successful!",
-                     nodeletName_.c_str());
+            RCLCPP_INFO(logger_, "Writing results to URDF model file: Successful!");
         }
     }
 
@@ -435,16 +501,18 @@ void ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::saveCalibra
     {
         if (!saveObservationsToCalibrationWorkspace())
         {
-            ROS_WARN("[%s] Something went wrong while writing observations to calibration "
-                     "workspace.\n\t> Workspace: %s",
-                     nodeletName_.c_str(), pCalibrationWs_->getPath().string().c_str());
+            RCLCPP_WARN(logger_, "Something went wrong while writing observations to calibration "
+                                 "workspace. "
+                                 "Workspace: %s",
+                        pCalibrationWs_->getPath().string().c_str());
         }
         else
         {
-            ROS_INFO("[%s] Writing observations to calibration workspace: Successful!",
-                     nodeletName_.c_str());
+            RCLCPP_INFO(logger_, "Writing observations to calibration workspace: Successful!");
         }
     }
+
+    return true;
 }
 
 //==================================================================================================
@@ -524,7 +592,7 @@ bool ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::saveCalibra
 
     //--- reload URDF Model
     urdfModel_.clear();
-    urdfModel_.initXml(&urdfModelDoc_);
+    urdfModel_.initFile(urdfModelPath_);
 
     return true;
 }
@@ -585,31 +653,37 @@ bool ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
                                   const std::string& iReferenceFrameId)
 {
     //--- initialize extrinsics
-    tf::StampedTransform transform;
-    if (tfListener_.frameExists(iSourceFrameId) &&
-        tfListener_.frameExists(iReferenceFrameId))
+    if (tfBuffer_->_frameExists(iSourceFrameId) &&
+        tfBuffer_->_frameExists(iReferenceFrameId))
     {
         try
         {
-            tfListener_.lookupTransform(iSourceFrameId, iReferenceFrameId,
-                                        ros::Time(0), transform);
+            auto t = tfBuffer_->lookupTransform(iSourceFrameId, iReferenceFrameId,
+                                                tf2::TimePointZero);
+
+            tf2::Transform transform(tf2::Quaternion(t.transform.rotation.x,
+                                                     t.transform.rotation.y,
+                                                     t.transform.rotation.z,
+                                                     t.transform.rotation.w),
+                                     tf2::Vector3(t.transform.translation.x,
+                                                  t.transform.translation.y,
+                                                  t.transform.translation.z));
             utils::setCameraExtrinsicsFromTfTransform(transform,
                                                       sensorExtrinsics_.back());
         }
-        catch (tf::TransformException& ex)
+        catch (tf2::TransformException& ex)
         {
-            ROS_ERROR("[%s]"
-                      "\n\t> tf::TransformException: %s",
-                      nodeletName_.c_str(), ex.what());
+            RCLCPP_ERROR(logger_, "tf2::TransformException: %s",
+                         ex.what());
             return false;
         }
     }
     else
     {
-        ROS_WARN("[%s]"
-                 "\n\t> Frame %s or frame %s does not exists! "
-                 "Initializing extrinsic transformation with null rotation and translation.",
-                 nodeletName_.c_str(), iSourceFrameId.c_str(), iReferenceFrameId.c_str());
+        RCLCPP_WARN(logger_, "Frame %s or frame %s does not exists! "
+                             "Initializing extrinsic transformation with null rotation and "
+                             "translation.",
+                    iSourceFrameId.c_str(), iReferenceFrameId.c_str());
         sensorExtrinsics_.back() = lib3d::Extrinsics();
         return false;
     }
@@ -619,7 +693,7 @@ bool ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
 
 //==================================================================================================
 template <class SrcDataProcessorT, class RefDataProcessorT>
-std::pair<tf::Vector3, tf::Vector3> ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
+std::pair<tf2::Vector3, tf2::Vector3> ExtrinsicCalibrationBase<SrcDataProcessorT, RefDataProcessorT>::
   computeTargetPoseStdDev(
     const std::vector<lib3d::Extrinsics>& iSrcTargetPoses,
     const std::vector<lib3d::Extrinsics>& iRefTargetPoses) const
@@ -630,8 +704,8 @@ std::pair<tf::Vector3, tf::Vector3> ExtrinsicCalibrationBase<SrcDataProcessorT, 
     //--- if only one overlapping target pose is available, return maximum deviation
     if (MIN_TARGET_POSES <= 1)
     {
-        return std::make_pair(tf::Vector3(FLT_MAX, FLT_MAX, FLT_MAX),
-                              tf::Vector3(FLT_MAX, FLT_MAX, FLT_MAX));
+        return std::make_pair(tf2::Vector3(FLT_MAX, FLT_MAX, FLT_MAX),
+                              tf2::Vector3(FLT_MAX, FLT_MAX, FLT_MAX));
     }
 
     //--- get RT Matrix of last extrinsic pose to transform source sensor into reference
@@ -639,13 +713,13 @@ std::pair<tf::Vector3, tf::Vector3> ExtrinsicCalibrationBase<SrcDataProcessorT, 
       lib3d::Extrinsics::LOCAL_2_REF);
 
     // list of differences in xyz and rpy of target poses
-    std::vector<tf::Vector3> xyz_differences, rpy_differences;
+    std::vector<tf2::Vector3> xyz_differences, rpy_differences;
 
     // mean values of differences in xyz of target poses
-    tf::Vector3 xyz_difference_mean = tf::Vector3(0, 0, 0);
+    tf2::Vector3 xyz_difference_mean = tf2::Vector3(0, 0, 0);
 
     // mean values of differences in rpy of target poses
-    tf::Vector3 rpy_difference_mean = tf::Vector3(0, 0, 0);
+    tf2::Vector3 rpy_difference_mean = tf2::Vector3(0, 0, 0);
 
     //--- loop over number of overlapping target poses
     for (uint i = 0; i < MIN_TARGET_POSES; ++i)
@@ -656,10 +730,10 @@ std::pair<tf::Vector3, tf::Vector3> ExtrinsicCalibrationBase<SrcDataProcessorT, 
         transSrcPose.setRTMatrix(
           EXTR_TRANSF_MAT * iSrcTargetPoses[i].getRTMatrix(lib3d::Extrinsics::LOCAL_2_REF));
 
-        // tf::Transform of the transformed source pose and the ref pose.
-        tf::Transform transSrcPoseTransform, refPoseTransform;
+        // tf2::Transform of the transformed source pose and the ref pose.
+        tf2::Transform transSrcPoseTransform, refPoseTransform;
 
-        //--- get tf::Transforms from lib3d::Extrinsics
+        //--- get tf2::Transforms from lib3d::Extrinsics
         utils::setTfTransformFromCameraExtrinsics(transSrcPose, transSrcPoseTransform);
         utils::setTfTransformFromCameraExtrinsics(iRefTargetPoses[i], refPoseTransform);
 
@@ -670,7 +744,7 @@ std::pair<tf::Vector3, tf::Vector3> ExtrinsicCalibrationBase<SrcDataProcessorT, 
         double sRoll, sPitch, sYaw, rRoll, rPitch, rYaw;
         transSrcPoseTransform.getBasis().getRPY(sRoll, sPitch, sYaw);
         refPoseTransform.getBasis().getRPY(rRoll, rPitch, rYaw);
-        rpy_differences.push_back(tf::Vector3(sRoll - rRoll, sPitch - rPitch, sYaw - rYaw));
+        rpy_differences.push_back(tf2::Vector3(sRoll - rRoll, sPitch - rPitch, sYaw - rYaw));
 
         //--- add previously computed difference to running mean of XYZ and RPY
         xyz_difference_mean += xyz_differences.back();
@@ -681,29 +755,29 @@ std::pair<tf::Vector3, tf::Vector3> ExtrinsicCalibrationBase<SrcDataProcessorT, 
     xyz_difference_mean /= MIN_TARGET_POSES;
     rpy_difference_mean /= MIN_TARGET_POSES;
 
-    tf::Vector3 xyz_var = tf::Vector3(0, 0, 0); // variance in XYZ of pose
-    tf::Vector3 rpy_var = tf::Vector3(0, 0, 0); // variance in RPY of pose
+    tf2::Vector3 xyz_var = tf2::Vector3(0, 0, 0); // variance in XYZ of pose
+    tf2::Vector3 rpy_var = tf2::Vector3(0, 0, 0); // variance in RPY of pose
 
     //--- compute variance
     for (uint i = 0; i < MIN_TARGET_POSES; ++i)
     {
-        xyz_var += tf::Vector3(std::pow(xyz_differences[i].x() - xyz_difference_mean.x(), 2.f),
-                               std::pow(xyz_differences[i].y() - xyz_difference_mean.y(), 2.f),
-                               std::pow(xyz_differences[i].z() - xyz_difference_mean.z(), 2.f));
+        xyz_var += tf2::Vector3(std::pow(xyz_differences[i].x() - xyz_difference_mean.x(), 2.f),
+                                std::pow(xyz_differences[i].y() - xyz_difference_mean.y(), 2.f),
+                                std::pow(xyz_differences[i].z() - xyz_difference_mean.z(), 2.f));
 
-        rpy_var += tf::Vector3(std::pow(rpy_differences[i].x() - rpy_difference_mean.x(), 2.f),
-                               std::pow(rpy_differences[i].y() - rpy_difference_mean.y(), 2.f),
-                               std::pow(rpy_differences[i].z() - rpy_difference_mean.z(), 2.f));
+        rpy_var += tf2::Vector3(std::pow(rpy_differences[i].x() - rpy_difference_mean.x(), 2.f),
+                                std::pow(rpy_differences[i].y() - rpy_difference_mean.y(), 2.f),
+                                std::pow(rpy_differences[i].z() - rpy_difference_mean.z(), 2.f));
     }
     xyz_var /= MIN_TARGET_POSES;
     rpy_var /= MIN_TARGET_POSES;
 
     //--- compute and return standard deviation
     return std::make_pair(
-      tf::Vector3(std::sqrt(xyz_var.x()), std::sqrt(xyz_var.y()), std::sqrt(xyz_var.z())),
-      tf::Vector3(lib3d::radianToDegree(std::sqrt(rpy_var.x())),
-                  lib3d::radianToDegree(std::sqrt(rpy_var.y())),
-                  lib3d::radianToDegree(std::sqrt(rpy_var.z()))));
+      tf2::Vector3(std::sqrt(xyz_var.x()), std::sqrt(xyz_var.y()), std::sqrt(xyz_var.z())),
+      tf2::Vector3(lib3d::radianToDegree(std::sqrt(rpy_var.x())),
+                   lib3d::radianToDegree(std::sqrt(rpy_var.y())),
+                   lib3d::radianToDegree(std::sqrt(rpy_var.z()))));
 }
 
 //==================================================================================================

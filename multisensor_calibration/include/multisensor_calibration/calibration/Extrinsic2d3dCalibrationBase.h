@@ -37,9 +37,11 @@
 #include <pcl/point_cloud.h>
 
 // multisensor_calibration
-#include "../data_processing/CameraDataProcessor.h"
+#include "../sensor_data_processing/CameraDataProcessor.h"
+#include "../sensor_data_processing/LidarDataProcessor.h"
+#include "../sensor_data_processing/ReferenceDataProcessor3d.h"
 #include "ExtrinsicCalibrationBase.h"
-#include <multisensor_calibration/CameraIntrinsics.h>
+#include <multisensor_calibration_interface/srv/camera_intrinsics.hpp>
 
 namespace multisensor_calibration
 {
@@ -128,6 +130,25 @@ class Extrinsic2d3dCalibrationBase
     bool initializeCameraIntrinsics(CameraDataProcessor* iopCamProcessor);
 
     /**
+     * @brief Method to initialize subscribers. This overrides the method of the parent class.
+     * In this, the parent method is also called.
+     *
+     * @return True, if all settings are valid. False, otherwise.
+     */
+    bool initializeSubscribers(rclcpp::Node* ipNode) override;
+
+    /**
+     * @brief Handle reception of camera info message of left camera.
+     */
+    void onLeftCameraInfoReceived(const sensor_msgs::msg::CameraInfo::SharedPtr pCamInfo);
+
+    /**
+     * @brief Handle reception of camera info message of right camera.
+     * Only used when isStereoCamera_ == true
+     */
+    void onRightCameraInfoReceived(const sensor_msgs::msg::CameraInfo::SharedPtr pCamInfo);
+
+    /**
      * @brief Method to save calibration specific settings to the workspace. This overrides the
      * method of the parent class.
      *
@@ -136,13 +157,23 @@ class Extrinsic2d3dCalibrationBase
     bool saveCalibrationSettingsToWorkspace() override;
 
     /**
+     * @brief Setup launch parameters.
+     *
+     * The implementation within this class hold launch parameters that are common to all
+     * calibration nodes.
+     *
+     * @param[in] ipNode Pointer to node.
+     */
+    void setupLaunchParameters(rclcpp::Node* ipNode) const override;
+
+    /**
      * @brief Method to read launch parameters. This overrides the method of the parent class.
      * In this, the parent method is also called.
      *
      * @param[in] iNh Object of node handle
      * @return True if successful. False, otherwise (e.g. if sanity check fails)
      */
-    bool readLaunchParameters(const ros::NodeHandle& iNh) override;
+    bool readLaunchParameters(const rclcpp::Node* ipNode) override;
 
     //--- MEMBER DECLARATION ---//
 
@@ -189,11 +220,17 @@ class Extrinsic2d3dCalibrationBase
     /// id. If the imageState_ is STEREO_RECTIFIED this is removed from the frame id.
     std::string rectSuffix_;
 
-    /// Camera info data of left camera. Only used when isStereoCamera_ == true
-    sensor_msgs::CameraInfo leftCameraInfo_;
+    /// Subscriber to camera info messages of left camera.
+    rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr pLeftCamInfoSubsc_;
+
+    /// Camera info data of left camera.
+    sensor_msgs::msg::CameraInfo leftCameraInfo_;
+
+    /// Subscriber to camera info messages of right camera. Only used when isStereoCamera_ == true
+    rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr pRightCamInfoSubsc_;
 
     /// Camera info data of right camera. Only used when isStereoCamera_ == true
-    sensor_msgs::CameraInfo rightCameraInfo_;
+    sensor_msgs::msg::CameraInfo rightCameraInfo_;
 };
 
 } // namespace multisensor_calibration

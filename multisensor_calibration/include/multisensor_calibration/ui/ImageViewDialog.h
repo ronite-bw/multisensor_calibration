@@ -38,8 +38,9 @@
 #include <QGraphicsView>
 
 // ROS
-#include <image_transport/image_transport.h>
-#include <image_transport/subscriber_filter.h>
+#include <image_transport/image_transport.hpp>
+#include <image_transport/subscriber_filter.hpp>
+#include <rclcpp/rclcpp.hpp>
 
 // multisensor_calibration
 #include "../common/common.h"
@@ -80,16 +81,16 @@ class ImageViewDialog : public QDialog
      *
      * @param[in] ipImgMsg Pointer to vis image message.
      */
-    void imageMessageCallback(const InputImage_Message_T::ConstPtr& ipImgMsg);
+    void imageMessageCallback(const InputImage_Message_T::ConstSharedPtr& ipImgMsg);
 
     /**
      * @brief Assign the image view to subscribe to a given image topic available on the given
-     * node handler.
+     * node.
      *
-     * @param[in] ioNh Node handler.
+     * @param[in] ipNode Pointer to node
      * @param[in] iTopicName Topic on which to subscribe.
      */
-    void subscribeToImageTopic(ros::NodeHandle& ioNh, const std::string& iTopicName);
+    void subscribeToImageTopic(rclcpp::Node* ipNode, const std::string& iTopicName);
 
     //--- MEMBER DECLARATION ---//
 

@@ -1,30 +1,9 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+/***********************************************************************
+ *
+ *   Copyright (c) 2022 - 2024 Fraunhofer Institute of Optronics,
+ *   System Technologies and Image Exploitation IOSB
+ *
+ **********************************************************************/
 
 #include "../../include/multisensor_calibration/ui/ObservationsViewDialog.h"
 
@@ -45,11 +24,13 @@
 // multisensor_calibration
 #include "../../include/multisensor_calibration/ui/CalibrationGuiBase.h"
 #include "ui_ObservationsViewDialog.h"
-#include <multisensor_calibration/AddMarkerObservations.h>
+#include <multisensor_calibration/common/utils.hpp>
+#include <multisensor_calibration_interface/srv/add_marker_observations.hpp>
 
 // TODO: Remove static decleration and get marker IDs in item delegate from target configuration, if still applicable.
 static std::vector<int> MARKER_IDS_FOR_ITEM_DELEGATE = {1, 2, 3, 4};
 
+using namespace multisensor_calibration_interface::srv;
 namespace multisensor_calibration
 {
 
@@ -235,6 +216,13 @@ void ObservationsViewDialog::setSensorName(const std::string& name)
 }
 
 //==================================================================================================
+void ObservationsViewDialog::initializeTfListener(rclcpp::Node* ipNode)
+{
+    tfBuffer_   = std::make_unique<tf2_ros::Buffer>(ipNode->get_clock());
+    tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
+}
+
+//==================================================================================================
 void ObservationsViewDialog::handleButtonBoxClicked(QAbstractButton* button)
 {
     //--- since there is currently only one button in the button box, there is only one
@@ -318,7 +306,7 @@ void ObservationsViewDialog::handleButtonBoxClicked(QAbstractButton* button)
     tableRowCount = pUi_->observationsTableWidget->rowCount();
 
     /// List of service message that are to be called
-    std::vector<AddMarkerObservations> srvMsgs;
+    std::vector<AddMarkerObservations::Request::SharedPtr> srvMsgs;
 
     //--- loop over remaining list and try to construct service messages. To this end, it is
     //--- assumed, that the pose observations are entered in a contiguous order, starting off at
@@ -340,21 +328,21 @@ void ObservationsViewDialog::handleButtonBoxClicked(QAbstractButton* button)
             //--- add new message to the list and increment the current pose index
             if (currentPoseIdx == (poseIdx - 1))
             {
-                srvMsgs.push_back(AddMarkerObservations());
+                srvMsgs.push_back(std::make_shared<AddMarkerObservations::Request>());
                 currentPoseIdx = poseIdx;
             }
 
             //--- enter information of the current row into the message
-            srvMsgs.back().request.observation.marker_ids.push_back(
+            srvMsgs.back()->observation.marker_ids.push_back(
               pUi_->observationsTableWidget->item(r, 1)->text().toInt());
 
-            srvMsgs.back().request.observation.marker_top_left_point.push_back(
-              geometry_msgs::Point());
-            srvMsgs.back().request.observation.marker_top_left_point.back().x =
+            srvMsgs.back()->observation.marker_top_left_point.push_back(
+              geometry_msgs::msg::Point());
+            srvMsgs.back()->observation.marker_top_left_point.back().x =
               pUi_->observationsTableWidget->item(r, 2)->text().toDouble();
-            srvMsgs.back().request.observation.marker_top_left_point.back().y =
+            srvMsgs.back()->observation.marker_top_left_point.back().y =
               pUi_->observationsTableWidget->item(r, 3)->text().toDouble();
-            srvMsgs.back().request.observation.marker_top_left_point.back().z =
+            srvMsgs.back()->observation.marker_top_left_point.back().z =
               pUi_->observationsTableWidget->item(r, 4)->text().toDouble();
         }
         else
@@ -372,18 +360,22 @@ void ObservationsViewDialog::handleButtonBoxClicked(QAbstractButton* button)
     }
 
     // Function to do service call
-    auto doServiceCall = [&](AddMarkerObservations srvMsg)
+    auto doServiceCall = [&](AddMarkerObservations::Request::SharedPtr srvMsg)
     {
-        std::string serviceName = pCalibrationGui_->getCalibratorNodeletName() + "/" +
+        std::string serviceName = pCalibrationGui_->getCalibratorNodeName() + "/" +
                                   sensorName_ + "/" + ADD_MARKER_OBS_SRV_NAME;
 
         //--- add reference maker observation
-        ros::ServiceClient addObservationClient =
-          pCalibrationGui_->globalNodeHandle().serviceClient<AddMarkerObservations>(serviceName);
-        if (!addObservationClient.call(srvMsg))
+        auto addObservationClient = pCalibrationGui_->nodeSharedPtr()->create_client<AddMarkerObservations>(serviceName);
+
+        auto addObservationResponse = addObservationClient->async_send_request(srvMsg);
+        auto retCode                = utils::doWhileWaiting(pCalibrationGui_->executor(), addObservationResponse, [&]()
+                                                            { QCoreApplication::processEvents(); }, 100);
+        if (retCode != rclcpp::FutureReturnCode::SUCCESS)
         {
-            ROS_ERROR("[%s] Failed to add observation. Called Service: %s",
-                      pCalibrationGui_->getGuiNodeName().c_str(), serviceName.c_str());
+            RCLCPP_ERROR(pCalibrationGui_->nodePtr()->get_logger(),
+                         "[%s] Failed to add observation. Called Service: %s",
+                         pCalibrationGui_->getGuiNodeName().c_str(), serviceName.c_str());
         }
     };
 
@@ -391,13 +383,9 @@ void ObservationsViewDialog::handleButtonBoxClicked(QAbstractButton* button)
       "Submitting '" + this->windowTitle() + "' observations...");
 
     //--- loop over messages and to service calls
-    for (AddMarkerObservations msg : srvMsgs)
+    for (AddMarkerObservations::Request::SharedPtr msg : srvMsgs)
     {
-        auto srvFuture = std::async(doServiceCall, msg);
-
-        //--- while future is not ready, process QEvents in order for the progress dialog not to freeze
-        while (srvFuture.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready)
-            QCoreApplication::processEvents();
+        doServiceCall(msg);
     }
 
     pCalibrationGui_->hideProgressDialog();

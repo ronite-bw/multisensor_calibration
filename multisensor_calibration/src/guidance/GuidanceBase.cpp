@@ -1,48 +1,36 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+/***********************************************************************
+ *
+ *   Copyright (c) 2022 - 2024 Fraunhofer Institute of Optronics,
+ *   System Technologies and Image Exploitation IOSB
+ *
+ **********************************************************************/
 
 #include "../include/multisensor_calibration/guidance/GuidanceBase.h"
 
 // ROS
-#include <tf/tf.h>
+#include <chrono>
+#include <functional>
+#include <tf2_ros/transform_listener.h>
 
 // multisensor_calibration
 #include "../include/multisensor_calibration/common/common.h"
 #include "../include/multisensor_calibration/common/utils.hpp"
-#include <multisensor_calibration/SensorExtrinsics.h>
+#include <multisensor_calibration_interface/srv/sensor_extrinsics.hpp>
 namespace multisensor_calibration
 {
 
+using namespace utils;
+;
+
 //==================================================================================================
-GuidanceBase::GuidanceBase() :
+GuidanceBase::GuidanceBase(rclcpp::Node* pNode) :
   isInitialized_(true),
-  nodeletName_(""),
-  parentNamespace_(""),
+  initialPoseReceived_(false),
+  pNode_(pNode),
+  pExecutor_(nullptr),
+  pCalibMetaDataTimer_(nullptr),
+  pCalibResultSubsc_(nullptr),
+  pResetSrv_(nullptr),
   extrinsicSensorPose_(lib3d::Extrinsics()),
   nextTargetPose_(lib3d::Extrinsics()),
   axes_({Eigen::Vector3d(1.0, 0.0, 0.0),
@@ -70,36 +58,35 @@ float GuidanceBase::computeAxisBound(const Eigen::Vector3d& iPnt, const Eigen::V
 }
 
 //==================================================================================================
-bool GuidanceBase::initializeServices(ros::NodeHandle& ioNh)
+bool GuidanceBase::initializeServices()
 {
     //--- reset service
-    resetSrv_ = ioNh.advertiseService(
-      RESET_SRV_NAME,
-      &GuidanceBase::onReset, this);
+    pResetSrv_ =
+      pNode_->create_service<multisensor_calibration_interface::srv::ResetCalibration>(RESET_SRV_NAME,
+                                                                                std::bind(&GuidanceBase::onReset, this, std::placeholders::_1, std::placeholders::_2));
 
-    return true;
+    return pResetSrv_ != nullptr;
 }
 
 //==================================================================================================
-bool GuidanceBase::initializeSubscribers(ros::NodeHandle& ioNh)
+bool GuidanceBase::initializeSubscribers()
 {
     //--- subscriber to calib result
-    calibResultSubsc_ = ioNh.subscribe<CalibrationResult_Message_T>(
-      calibratorNodeletName_ + "/" + CALIB_RESULT_TOPIC_NAME, 1,
-      boost::bind(&GuidanceBase::onCalibrationResultReceived, this, _1));
+    pCalibResultSubsc_ = pNode_->create_subscription<CalibrationResult_Message_T>(
+      calibratorNodeName_ + "/" + CALIB_RESULT_TOPIC_NAME,
+      1,
+      std::bind(&GuidanceBase::onCalibrationResultReceived, this, std::placeholders::_1));
 
-    return true;
+    return pCalibResultSubsc_ != nullptr;
 }
 
 //==================================================================================================
-bool GuidanceBase::initializeTimers(ros::NodeHandle& ioNh)
+bool GuidanceBase::initializeTimers()
 {
     //--- initialize trigger to call routine to get calibration meta data
-    calibMetaDataTimer_ = ioNh.createTimer(
-      ros::Duration(1), &GuidanceBase::getCalibrationMetaData,
-      this, false, false);
+    pCalibMetaDataTimer_ = pNode_->create_wall_timer(std::chrono::seconds(1), std::bind(&GuidanceBase::getCalibrationMetaData, this), nullptr, false);
 
-    return true;
+    return pCalibMetaDataTimer_ != nullptr;
 }
 
 //==================================================================================================
@@ -151,18 +138,18 @@ bool GuidanceBase::isTargetPoseWithinBoundingPlanes(const lib3d::Extrinsics& iPo
 }
 
 //==================================================================================================
-void GuidanceBase::onCalibrationResultReceived(const CalibrationResult_Message_T::ConstPtr& ipResultMsg)
+void GuidanceBase::onCalibrationResultReceived(const CalibrationResult_Message_T::ConstSharedPtr& ipResultMsg)
 {
-    if (!ipResultMsg->isSuccessful)
+    if (!ipResultMsg->is_successful)
         return;
 
     //--- construct transform from pose
-    tf::Transform ref2LocalTransform;
-    utils::cvtGeometryPose2TfTransform(ipResultMsg->sensorExtrinsics, ref2LocalTransform);
+    tf2::Transform ref2LocalTransform;
+    utils::cvtGeometryTransform2TfTransform(ipResultMsg->sensor_extrinsics, ref2LocalTransform);
 
     //--- convert to extrinsic sensor pose
-    utils::setCameraExtrinsicsFromTfTransform(ref2LocalTransform,
-                                              extrinsicSensorPose_);
+    setCameraExtrinsicsFromTfTransform(ref2LocalTransform,
+                                       extrinsicSensorPose_);
 
     //--- compute overlapping Fov
     computeExtrinsicFovBoundingPlanes();
@@ -172,63 +159,82 @@ void GuidanceBase::onCalibrationResultReceived(const CalibrationResult_Message_T
 }
 
 //==================================================================================================
-void GuidanceBase::onTargetPoseReceived(const TargetBoardPose_Message_T::ConstPtr& ipPoseMsg)
+void GuidanceBase::onTargetPoseReceived(const TargetBoardPose_Message_T::ConstSharedPtr& ipPoseMsg)
 {
-    if (ipPoseMsg->isDetection)
+    if (ipPoseMsg->is_detection)
     {
         //--- construct transform from pose
-        tf::Transform ref2LocalTransform;
-        utils::cvtGeometryPose2TfTransform(ipPoseMsg->targetPose, ref2LocalTransform);
+        tf2::Transform ref2LocalTransform;
+        utils::cvtGeometryPose2TfTransform(ipPoseMsg->target_pose, ref2LocalTransform);
 
         //--- convert to extrinsic sensor pose
         detectedTargetPoses_.push_back(lib3d::Extrinsics());
-        utils::setCameraExtrinsicsFromTfTransform(ref2LocalTransform,
-                                                  detectedTargetPoses_.back());
+        setCameraExtrinsicsFromTfTransform(ref2LocalTransform,
+                                           detectedTargetPoses_.back());
     }
 }
 
 //==================================================================================================
-bool GuidanceBase::readLaunchParameters(const ros::NodeHandle& iNh)
+bool GuidanceBase::readLaunchParameters()
 {
-    //--- calibrator nodelet name
-    calibratorNodeletName_ = iNh.param<std::string>("calibrator_name",
-                                                    parentNamespace_ + "/" + CALIBRATOR_SUB_NAMESPACE);
-
     return true;
 }
 
 //==================================================================================================
-void GuidanceBase::getCalibrationMetaData(const ros::TimerEvent&)
+void GuidanceBase::getCalibrationMetaData()
 {
     //--- get calibration meta data
-    ros::ServiceClient metaDataClient =
-      nh_.serviceClient<CalibrationMetaData>(calibratorNodeletName_ +
-                                             "/" + REQUEST_META_DATA_SRV_NAME);
-    CalibrationMetaData srvMsg;
-    if (!metaDataClient.call(srvMsg))
+    pMetaDataClient_ =
+      pNode_->create_client<multisensor_calibration_interface::srv::CalibrationMetaData>(calibratorNodeName_ +
+                                                                                  "/" + REQUEST_META_DATA_SRV_NAME);
+
+    bool isServiceAvailable = false;
+    const int MAX_TRIES     = 10;
+    int cntr                = 0;
+
+    while (!isServiceAvailable && cntr < MAX_TRIES)
     {
-        ROS_ERROR("[%s] Failed to get calibration meta data. "
-                  "Check if calibration nodelet is initialized!",
-                  nodeletName_.c_str());
-        return;
+        isServiceAvailable = pMetaDataClient_->wait_for_service(std::chrono::milliseconds(500));
+        cntr++;
     }
 
-    calibrationMetaData_ = srvMsg.response;
-
-    //--- if calibration metadata is complete stop timer
-    if (calibrationMetaData_.isComplete)
+    if (isServiceAvailable)
     {
-        calibMetaDataTimer_.stop();
 
-        // read calibration target
-        calibrationTarget_.readFromYamlFile(calibrationMetaData_.calib_target_file_path);
-        isInitialized_ &= calibrationTarget_.isValid();
+        auto request  = std::make_shared<multisensor_calibration_interface::srv::CalibrationMetaData::Request>();
+        auto future   = pMetaDataClient_->async_send_request(
+          request,
+          [this](rclcpp::Client<CalibrationMetadataSrv>::SharedFuture response)
+          {
+              pCalibrationMetaData_ = response.get();
 
-        // get initial sensor pose
-        isInitialized_ &= getInitialSensorPose();
+              //--- if calibration metadata is complete stop timer
+              if (pCalibrationMetaData_->is_complete)
+              {
+                  pCalibMetaDataTimer_->cancel();
+                  // read calibration target
+                  calibrationTarget_.readFromYamlFile(pCalibrationMetaData_->calib_target_file_path);
+                  isInitialized_ &= calibrationTarget_.isValid();
 
-        // initialize subscribers
-        isInitialized_ &= initializeSubscribers(nh_);
+                  // initialize subscribers
+                  isInitialized_ &= initializeSubscribers();
+
+                  // get initial sensor pose
+                  isInitialized_ &= getInitialSensorPose();
+              }
+              else
+              {
+                  RCLCPP_ERROR(pNode_->get_logger(),
+                                 "Failure in getting calibration meta data.\n"
+                                   "Check if calibration node is initialized!");
+              }
+          });
+    }
+    else
+    {
+        RCLCPP_ERROR(pNode_->get_logger(),
+                     "Service to get calibration meta data is not available.\n"
+                     "Check if calibration node is initialized!");
     }
 }
 
@@ -236,52 +242,63 @@ void GuidanceBase::getCalibrationMetaData(const ros::TimerEvent&)
 bool GuidanceBase::getInitialSensorPose()
 {
     //--- get sensor extrinsics
-    ros::ServiceClient extrinsicsClient =
-      nh_.serviceClient<SensorExtrinsics>(calibratorNodeletName_ +
-                                          "/" + REQUEST_SENSOR_EXTRINSICS_SRV_NAME);
-    SensorExtrinsics srvMsg;
-    const geometry_msgs::Pose& POSE = srvMsg.response.extrinsics;
-    if (!extrinsicsClient.call(srvMsg))
+    extrinsicsClient_ =
+      pNode_->create_client<multisensor_calibration_interface::srv::SensorExtrinsics>(calibratorNodeName_ +
+                                                                               "/" + REQUEST_SENSOR_EXTRINSICS_SRV_NAME);
+
+    bool isServiceAvailable = false;
+    const int MAX_TRIES     = 10;
+    int cntr                = 0;
+    while (!isServiceAvailable && cntr < MAX_TRIES)
     {
-        ROS_ERROR("[%s] Failed to get sensor extrinsics. "
-                  "Check if calibration nodelet is initialized!",
-                  nodeletName_.c_str());
+        isServiceAvailable = extrinsicsClient_->wait_for_service(std::chrono::milliseconds(500));
+        cntr++;
+    }
+
+    if (!isServiceAvailable)
+    {
+        RCLCPP_ERROR(pNode_->get_logger(),
+                     "Service to get extrinsics is not available");
         return false;
     }
 
-    //--- check if extrinsic pose is 0
-    if (tf::Vector3(POSE.position.x,
-                    POSE.position.y,
-                    POSE.position.z) == tf::Vector3(0, 0, 0) &&
-        tf::Quaternion(POSE.orientation.x,
-                       POSE.orientation.y,
-                       POSE.orientation.z,
-                       POSE.orientation.w) == tf::Quaternion(0, 0, 0, 1))
-    {
-        ROS_INFO("[%s] No initial sensor pose available. Please add first observation:"
-                 "\n\t> Place target in field-of-view of both sensors."
-                 "\n\t> Press button to add observation.",
-                 nodeletName_.c_str());
+    auto request = std::make_shared<multisensor_calibration_interface::srv::SensorExtrinsics::Request>();
+    auto future   = extrinsicsClient_->async_send_request(
+      request, [this](rclcpp::Client<multisensor_calibration_interface::srv::SensorExtrinsics>::SharedFuture response)
+      {
+          auto& POSE = response.get()->extrinsics;
+          //--- check if extrinsic pose is 0
+          if (tf2::Vector3(POSE.position.x,
+                           POSE.position.y,
+                           POSE.position.z) == tf2::Vector3(0, 0, 0) &&
+              tf2::Quaternion(POSE.orientation.x,
+                              POSE.orientation.y,
+                              POSE.orientation.z,
+                              POSE.orientation.w) == tf2::Quaternion(0, 0, 0, 1))
+          {
+              RCLCPP_INFO(pNode_->get_logger(), "No initial sensor pose available. Please add first observation:"
+                                                "\n\t> Place target in field-of-view of both sensors."
+                                                "\n\t> Press button to add observation.");
+          }
+          else
+          {
+              //--- construct transform from pose
+              tf2::Transform ref2LocalTransform;
+              utils::cvtGeometryPose2TfTransform(POSE, ref2LocalTransform);
 
-        return true;
-    }
-    else
-    {
-        //--- construct transform from pose
-        tf::Transform ref2LocalTransform;
-        utils::cvtGeometryPose2TfTransform(POSE, ref2LocalTransform);
+              //--- convert to extrinsic sensor pose
+              setCameraExtrinsicsFromTfTransform(ref2LocalTransform,
+                                                 extrinsicSensorPose_);
+          }
 
-        //--- convert to extrinsic sensor pose
-        utils::setCameraExtrinsicsFromTfTransform(ref2LocalTransform,
-                                                  extrinsicSensorPose_);
+          initialPoseReceived_ = true; });
 
-        return true;
-    }
+    return true;
 }
 
 //==================================================================================================
-bool GuidanceBase::onReset(multisensor_calibration::ResetCalibration::Request& iReq,
-                           multisensor_calibration::ResetCalibration::Response& oRes)
+bool GuidanceBase::onReset(multisensor_calibration_interface::srv::ResetCalibration::Request::SharedPtr iReq,
+                           multisensor_calibration_interface::srv::ResetCalibration::Response::SharedPtr oRes)
 {
     UNUSED_VAR(iReq);
 
@@ -289,8 +306,8 @@ bool GuidanceBase::onReset(multisensor_calibration::ResetCalibration::Request& i
     detectedTargetPoses_.clear();
     resetNextTargetPose();
 
-    oRes.isAccepted = true;
-    oRes.msg        = "Guidance is reset.";
+    oRes->is_accepted = true;
+    oRes->msg         = "Guidance is reset.";
 
     return true;
 }

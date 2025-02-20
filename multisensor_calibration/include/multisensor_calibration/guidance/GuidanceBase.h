@@ -30,23 +30,23 @@
 #define MULTISENSORCALIBRATION_GUIDANCEBASE_H
 
 // Std
-#include <memory>
-#include <tuple>
+#include <rclcpp/executor.hpp>
+#include <rclcpp/logger.hpp>
 
 // ROS
-#include <ros/ros.h>
-#include <ros/service.h>
-#include <ros/timer.h>
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp/timer.hpp>
 
 // Eigen
 #include <Eigen/Geometry>
 
 // multisensor_calibration
 #include "../common/common.h"
-#include "../common/lib3D/core/extrinsics.hpp"
-#include "../config/CalibrationTarget.hpp"
-#include <multisensor_calibration/CalibrationMetaData.h>
-#include <multisensor_calibration/ResetCalibration.h>
+#include "multisensor_calibration/calibration_target/CalibrationTarget.hpp"
+#include "multisensor_calibration_interface/srv/calibration_meta_data.hpp"
+#include <multisensor_calibration/common/lib3D/core/extrinsics.hpp>
+#include <multisensor_calibration_interface/srv/reset_calibration.hpp>
+#include <multisensor_calibration_interface/srv/sensor_extrinsics.hpp>
 
 namespace multisensor_calibration
 {
@@ -67,7 +67,7 @@ class GuidanceBase
     /**
      * @brief Default constructor.
      */
-    GuidanceBase();
+    GuidanceBase(rclcpp::Node* pNode);
 
     /**
      * @brief Destructor
@@ -75,6 +75,8 @@ class GuidanceBase
     virtual ~GuidanceBase();
 
   protected:
+    typedef multisensor_calibration_interface::srv::CalibrationMetaData CalibrationMetadataSrv;
+    typedef multisensor_calibration_interface::srv::SensorExtrinsics SensorExtrinsicsSrv;
     /**
      * @brief Function to compute bound on axis along 'iVec' w.r.t to 'iPnt' by intersecting the axis
      * with the plane 'iPlane'.
@@ -110,7 +112,7 @@ class GuidanceBase
      * @param[in, out] ioNh Reference to node handle
      * @return True, if successful. False otherwise.
      */
-    virtual bool initializePublishers(ros::NodeHandle& ioNh) = 0;
+    virtual bool initializePublishers() = 0;
 
     /**
      * @brief Method to initialize services
@@ -118,14 +120,14 @@ class GuidanceBase
      * @param[in, out] ioNh Reference to node handle
      * @return True, if successful. False otherwise.
      */
-    virtual bool initializeServices(ros::NodeHandle& ioNh);
+    virtual bool initializeServices();
 
     /**
      * @brief Method to initialize subscribers.
      *
      * @return True, if all settings are valid. False, otherwise.
      */
-    virtual bool initializeSubscribers(ros::NodeHandle& ioNh);
+    virtual bool initializeSubscribers();
 
     /**
      * @brief Method to initialize timers.
@@ -133,7 +135,7 @@ class GuidanceBase
      * @param[in, out] ioNh Reference to node handle
      * @return True, if successful. False otherwise.
      */
-    virtual bool initializeTimers(ros::NodeHandle& ioNh);
+    virtual bool initializeTimers();
 
     /**
      * @brief Function to check if pose of the calibration target is within the bounding planes.
@@ -147,14 +149,14 @@ class GuidanceBase
      *
      * @param[in] ipResultMsg Calibration result message.
      */
-    virtual void onCalibrationResultReceived(const CalibrationResult_Message_T::ConstPtr& ipResultMsg);
+    virtual void onCalibrationResultReceived(const CalibrationResult_Message_T::ConstSharedPtr& ipResultMsg);
 
     /**
      * @brief Callback function handling target pose messages.
      *
      * @param[in] ipPoseMsg Target pose message.
      */
-    virtual void onTargetPoseReceived(const TargetBoardPose_Message_T::ConstPtr& ipPoseMsg);
+    virtual void onTargetPoseReceived(const TargetBoardPose_Message_T::ConstSharedPtr& ipPoseMsg);
 
     /**
      * @brief Method to read launch parameters
@@ -162,7 +164,7 @@ class GuidanceBase
      * @param[in] iNh Object of node handle
      * @return True if successful. False, otherwise (e.g. if sanity check fails)
      */
-    virtual bool readLaunchParameters(const ros::NodeHandle& iNh);
+    virtual bool readLaunchParameters();
 
     /**
      * @brief Method to reset nextTargetPose_
@@ -173,7 +175,7 @@ class GuidanceBase
     /**
      * @brief Method to get calibration meta data. This is connected to the calibMetaDataTimer_.
      */
-    void getCalibrationMetaData(const ros::TimerEvent&);
+    void getCalibrationMetaData();
 
     /**
      * @brief Method to get initial sensor pose from the calibration object.
@@ -186,44 +188,44 @@ class GuidanceBase
      * @param[in] iReq Request, empty
      * @param[out] oRes Response.
      */
-    bool onReset(multisensor_calibration::ResetCalibration::Request& iReq,
-                 multisensor_calibration::ResetCalibration::Response& oRes);
+    bool onReset(multisensor_calibration_interface::srv::ResetCalibration::Request::SharedPtr iReq,
+                 multisensor_calibration_interface::srv::ResetCalibration::Response::SharedPtr oRes);
 
     //--- MEMBER DECLARATION ---//
 
   protected:
-    /// Flag indicating if nodelet is initialized.
+    /// Flag indicating if node is initialized.
     bool isInitialized_;
 
-    /// Name of nodelet.
-    std::string nodeletName_;
+    /// Flag indicating if the initialPose has been received
+    bool initialPoseReceived_;
 
-    /// Name of the parent namespace.
-    std::string parentNamespace_;
+    /// Name of the app.
+    std::string appTitle_;
 
     /// Global node handler.
-    ros::NodeHandle nh_;
+    rclcpp::Node* pNode_;
 
-    /// Private node handler.
-    ros::NodeHandle pnh_;
+    /// ROS2 Executor
+    rclcpp::Executor* pExecutor_;
 
-    /// Name of the calibrator nodelet
-    std::string calibratorNodeletName_;
+    /// Name of the calibrator node
+    std::string calibratorNodeName_;
 
     /// Timer object to trigger service call to get calibration meta data.
-    ros::Timer calibMetaDataTimer_;
+    rclcpp::TimerBase::SharedPtr pCalibMetaDataTimer_;
 
     /// Subscriber to calibration result messages.
-    ros::Subscriber calibResultSubsc_;
+    rclcpp::Subscription<CalibrationResult_Message_T>::SharedPtr pCalibResultSubsc_;
 
     /// Subscriber to target pose messages.
-    ros::Subscriber targetPoseSubsc_;
+    rclcpp::Subscription<TargetBoardPose_Message_T>::SharedPtr pTargetPoseSubsc_;
 
     /// Server to provide service to reset calibration
-    ros::ServiceServer resetSrv_;
+    rclcpp::Service<multisensor_calibration_interface::srv::ResetCalibration>::SharedPtr pResetSrv_;
 
     /// Member variable holding calibration meta data.
-    multisensor_calibration::CalibrationMetaDataResponse calibrationMetaData_;
+    CalibrationMetadataSrv::Response::SharedPtr pCalibrationMetaData_;
 
     /// Extrinsic pose between the sensors to calibrate
     lib3d::Extrinsics extrinsicSensorPose_;
@@ -242,6 +244,10 @@ class GuidanceBase
 
     /// Axes to be covered by the calibration
     std::array<Eigen::Vector3d, 3> axes_;
+
+    /// Services
+    rclcpp::Client<CalibrationMetadataSrv>::SharedPtr pMetaDataClient_;
+    rclcpp::Client<SensorExtrinsicsSrv>::SharedPtr extrinsicsClient_;
 };
 
 } // namespace multisensor_calibration

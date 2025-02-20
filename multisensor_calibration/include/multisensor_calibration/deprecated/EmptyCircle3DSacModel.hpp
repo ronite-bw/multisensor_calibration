@@ -1,30 +1,9 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+/***********************************************************************
+ *
+ *   Copyright (c) 2022 - 2023 Fraunhofer Institute of Optronics,
+ *   System Technologies and Image Exploitation IOSB
+ *
+ **********************************************************************/
 
 #ifndef MULTISENSORCALIBRATION_EMPTYCIRCLE3DSACMODEL_H
 #define MULTISENSORCALIBRATION_EMPTYCIRCLE3DSACMODEL_H
@@ -151,8 +130,9 @@ class EmptyCircle3DSacModel : public pcl::SampleConsensusModelCircle3D<PointT>
     {
         if (iExpectedDensity <= 0)
         {
-            ROS_ERROR("[%s]: Expected point density needs to be greater than 0.",
-                      __PRETTY_FUNCTION__);
+            RCLCPP_ERROR(rclcpp::get_logger("multisensor_calibration::EmptyCircle3DSacModel"),
+                         "%s: Expected point density needs to be greater than 0.",
+                         __PRETTY_FUNCTION__);
             return;
         }
 
@@ -169,9 +149,10 @@ class EmptyCircle3DSacModel : public pcl::SampleConsensusModelCircle3D<PointT>
     {
         if ((iMinSupportRadius <= 0) || (iMinSupportRadius >= iMaxSupportRadius))
         {
-            ROS_ERROR("[%s]: Both radii need to be greater than 0 and the max radius needs to be "
-                      "larger to min radius.",
-                      __PRETTY_FUNCTION__);
+            RCLCPP_ERROR(rclcpp::get_logger("multisensor_calibration::EmptyCircle3DSacModel"),
+                         "%s: Both radii need to be greater than 0 and the max radius needs to be "
+                         "larger to min radius.",
+                         __PRETTY_FUNCTION__);
             return;
         }
 
@@ -189,8 +170,9 @@ class EmptyCircle3DSacModel : public pcl::SampleConsensusModelCircle3D<PointT>
     {
         if (newInvalidParameterization.size() < 4)
         {
-            ROS_ERROR("[%s]: Parameterization to be added as 'invalid' is not of expected size.",
-                      __PRETTY_FUNCTION__);
+            RCLCPP_ERROR(rclcpp::get_logger("multisensor_calibration::EmptyCircle3DSacModel"),
+                         "%s: Parameterization to be added as 'invalid' is not of expected size.",
+                         __PRETTY_FUNCTION__);
             return;
         }
 
@@ -414,13 +396,13 @@ class EmptyCircle3DSacModel : public pcl::SampleConsensusModelCircle3D<PointT>
             return (false);
 
         // estimated center point
-        Eigen::Vector3f estCenter = modelCoefficients.block(0, 0, 3, 1);
+        Eigen::Vector3f estCenter = modelCoefficients.block<3, 1>(0, 0);
 
         // estimated radius
         float estRadius = modelCoefficients[3];
 
         // estimated normal vector
-        Eigen::Vector3f estNormalVector = modelCoefficients.block(4, 0, 3, 1);
+        Eigen::Vector3f estNormalVector = modelCoefficients.block<3, 1>(4, 0);
 
         //--- Check against orientation template, if given
         if (epsAngleNormal_ > 0.0 && !normalAxis_.isZero())
@@ -443,7 +425,7 @@ class EmptyCircle3DSacModel : public pcl::SampleConsensusModelCircle3D<PointT>
                 //--- if distance between new center and invalid center is smaller than new radius +
                 //--- invalid radius, return false
 
-                Eigen::Vector3f invalidCenter = invalidParam.block(0, 0, 3, 1);
+                Eigen::Vector3f invalidCenter = invalidParam.block<3, 1>(0, 0);
                 float invalidRadius           = invalidParam[3];
 
                 if ((invalidCenter - estCenter).norm() < (estRadius + invalidRadius))

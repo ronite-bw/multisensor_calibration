@@ -1,30 +1,9 @@
-// Copyright (c) 2024 - 2025 Fraunhofer IOSB and contributors
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the Fraunhofer IOSB nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+/***********************************************************************
+ *
+ *   Copyright (c) 2022 - 2024 Fraunhofer Institute of Optronics,
+ *   System Technologies and Image Exploitation IOSB
+ *
+ **********************************************************************/
 
 #include "../../include/multisensor_calibration/ui/CalibrationControlWindow.h"
 
@@ -46,13 +25,14 @@ CalibrationControlWindow::CalibrationControlWindow(QWidget* parent) :
   pAboutDialog(new AboutDialog(this))
 {
     ui->setupUi(this);
-    this->setWindowIcon(QIcon(":/icons/icons8-sensor-100_filled.png"));
+    this->setWindowIcon(QIcon(":/icons/icons8-sensor-100_filled"));
 
     //--- connections
     connect(ui->actionDocumentation, &QAction::triggered,
             this, &CalibrationControlWindow::onActionDocumentationTriggered);
     connect(ui->actionAbout, &QAction::triggered,
             this, &CalibrationControlWindow::onActionAboutTriggered);
+    connect(this, &CalibrationControlWindow::newLogMessage, ui->teLog, &QPlainTextEdit::appendHtml);
 }
 
 //==================================================================================================
@@ -185,7 +165,8 @@ QPushButton* CalibrationControlWindow::pbVisCalibrationPtr()
 }
 
 //==================================================================================================
-void CalibrationControlWindow::printLogMessage(const rosgraph_msgs::Log::ConstPtr pLogMsg)
+void CalibrationControlWindow::printLogMessage(
+  const rcl_interfaces::msg::Log::ConstSharedPtr pLogMsg)
 {
     QString plainTxtMessage = QString::fromStdString(pLogMsg->msg);
     QString textColor       = "black";
@@ -193,28 +174,28 @@ void CalibrationControlWindow::printLogMessage(const rosgraph_msgs::Log::ConstPt
     //--- update prefix based on log level
     switch (pLogMsg->level)
     {
-    case rosgraph_msgs::Log::DEBUG:
+    case rcl_interfaces::msg::Log::DEBUG:
         plainTxtMessage.prepend("[DEBUG]: ");
         textColor = "darkblue";
         break;
 
     default:
-    case rosgraph_msgs::Log::INFO:
+    case rcl_interfaces::msg::Log::INFO:
         plainTxtMessage.prepend("[ INFO]: ");
         textColor = "black";
         break;
 
-    case rosgraph_msgs::Log::WARN:
+    case rcl_interfaces::msg::Log::WARN:
         plainTxtMessage.prepend("[ WARN]: ");
         textColor = "olive";
         break;
 
-    case rosgraph_msgs::Log::ERROR:
+    case rcl_interfaces::msg::Log::ERROR:
         plainTxtMessage.prepend("[ERROR]: ");
         textColor = "darkred";
         break;
 
-    case rosgraph_msgs::Log::FATAL:
+    case rcl_interfaces::msg::Log::FATAL:
         plainTxtMessage.prepend("[FATAL]: ");
         textColor = "red";
         break;
@@ -223,7 +204,7 @@ void CalibrationControlWindow::printLogMessage(const rosgraph_msgs::Log::ConstPt
     QString htmlTextMessage = QString("<p style=\"color:%1;white-space:pre\">%2</p>")
                                 .arg(textColor, plainTxtMessage);
 
-    ui->teLog->appendHtml(htmlTextMessage);
+    emit(newLogMessage(htmlTextMessage));
 }
 
 //==================================================================================================
