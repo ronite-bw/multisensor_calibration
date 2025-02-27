@@ -18,7 +18,7 @@ The software is licensed under the new [BSD 3-Clause license](license.md). If yo
 
 ```text
 @inproceedings{
-    ruf2024_multisensor_calibration,
+    ruf2025_multisensor_calibration,
     title={Multi-Sensor Calibration Toolbox for Large-Scale Offroad Robotics},
     author={Boitumelo Ruf and Miguel Granero and Raphael Hagmanns and Janko Petereit},
     conference={German Robotics Conference (RIG) 2025},
