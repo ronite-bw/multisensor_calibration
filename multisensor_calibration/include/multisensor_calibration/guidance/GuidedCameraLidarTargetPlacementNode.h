@@ -167,7 +167,7 @@ class GuidedCameraLidarTargetPlacementNode : public GuidanceBase, public rclcpp:
      *
      * @param[in] ipImgMsg image message.
      */
-    void onImageReceived(const InputImage_Message_T::ConstPtr& ipImgMsg);
+    void onImageReceived(const InputImage_Message_T::ConstSharedPtr& ipImgMsg);
 
     /**
      * @brief Method to project outer border frame to image.

@@ -78,7 +78,7 @@ void GuidedCameraLidarTargetPlacementNode::computeExtrinsicFovBoundingPlanes()
     // //--- compute ground plane from lidar data and max hight of target
     // //--- get single point cloud message
     // //--- get camera intrinsics from camera_info
-    // InputCloud_Message_T::ConstPtr pLidarCloudMsg =
+    // InputCloud_Message_T::ConstSharedPtr pLidarCloudMsg =
     //   ros::topic::waitForMessage<InputCloud_Message_T>(calibrationMetaData_.ref_topic_name,
     //                                                    ros::Duration(3, 0));
     // pcl::PointCloud<InputPointType>::Ptr pLidarCloud(new pcl::PointCloud<InputPointType>);
