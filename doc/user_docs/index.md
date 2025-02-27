@@ -17,7 +17,13 @@ It provides a variety of methods and applications to calibrate complex multi-sen
 The software is licensed under the new [BSD 3-Clause license](license.md). If you use this project for your research, please cite:
 
 ```text
-TODO: add bibtex
+@inproceedings{
+    ruf2024_multisensor_calibration,
+    title={Multi-Sensor Calibration Toolbox for Large-Scale Offroad Robotics},
+    author={Boitumelo Ruf and Miguel Granero and Raphael Hagmanns and Janko Petereit},
+    conference={German Robotics Conference (RIG) 2025},
+    year={2025},
+} 
 ```
 
 The latest source code is available on [GitHub](https://github.com/FraunhoferIOSB/multisensor_calibration).

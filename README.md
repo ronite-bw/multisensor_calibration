@@ -12,7 +12,13 @@ It provides a variety of methods and applications to calibrate complex multi-sen
 The software is licensed under the new [BSD 3-Clause license](license.md). If you use this project for your research, please cite:
 
 ```text
-TODO: add bibtex
+@inproceedings{
+    ruf2024_multisensor_calibration,
+    title={Multi-Sensor Calibration Toolbox for Large-Scale Offroad Robotics},
+    author={Boitumelo Ruf and Miguel Granero and Raphael Hagmanns and Janko Petereit},
+    conference={German Robotics Conference (RIG) 2025},
+    year={2025},
+} 
 ```
 
 The `multisensor_calibration` is released as an official package for ROS 2 and can be installed with apt-get.
@@ -34,13 +40,14 @@ However, there is a version of the source code available for ROS 1 under the bra
 
 ### Contents:
 
-- [Getting Started](#getting-started)
+- [multisensor\_calibration](#multisensor_calibration)
+    - [Continuous Integration:](#continuous-integration)
+    - [Contents:](#contents)
+  - [Getting Started](#getting-started)
     - [Requirements](#requirements)
     - [Build](#build)
     - [Run](#run)
     - [Documentation](#documentation)
-- [Contributing](CONTRIBUTING.md)
-- [License](LICENSE)
 
 
 ------------------------
