@@ -26,6 +26,7 @@ jobs:
       - uses: actions/cache@v4 # fetch/store the directory used by ccache before/after the ci run
         with:
           path: ${{ env.CCACHE_DIR }}
+          submodules: true
           # This configuration will always create a new ccache cache starting off from the previous one (if any).
           # In this simple version it will be shared between all builds of the same ROS_REPO and ROS_REPO
           # and might need some fine-tuning to match the use case
