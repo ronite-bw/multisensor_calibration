@@ -35,6 +35,7 @@ However, there is a version of the source code available for ROS 1 under the bra
 | Service    | devel   | main   |
 | ---------- | ------- | ------ |
 | GitHub     |         | [![deploy](https://github.com/FraunhoferIOSB/multisensor_calibration/actions/workflows/docs.yml/badge.svg)](https://github.com/FraunhoferIOSB/multisensor_calibration/actions/workflows/docs.yml) |
+|            | [![Jazzy Jalisco](https://github.com/FraunhoferIOSB/multisensor_calibration/actions/workflows/build_and_test_jazzy.yml/badge.svg?branch=devel)](https://github.com/FraunhoferIOSB/multisensor_calibration/actions/workflows/build_and_test_jazzy.yml)           | [![Jazzy Jalisco](https://github.com/FraunhoferIOSB/multisensor_calibration/actions/workflows/build_and_test_jazzy.yml/badge.svg?branch=main)](https://github.com/FraunhoferIOSB/multisensor_calibration/actions/workflows/build_and_test_jazzy.yml) |
 
 ------------------------
 
