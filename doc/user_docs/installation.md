@@ -1,14 +1,14 @@
 # Installation
 
-The Multi-Sensor Calibration Toolbox is released as an [official package for ROS 2](#official-ros-2-package), named 'multisensor_calibration' can be installed with apt-get.
+The Multi-Sensor Calibration Toolbox is released as an [official package for ROS 2](#official-ros-2-package), named `multisensor_calibration`.
 Since ROS 1 is soon end-of-life, there will be no official release for ROS 1.
 
-In addition to the official release 'multisensor_calibration' can also be [build from source](#build-from-source) for ROS 1 and ROS 2 as described below.
+In addition to the official release, `multisensor_calibration` can also be [build from source](#build-from-source) for ROS 1 and ROS 2 as described below.
 
 ## Official ROS 2 Package
 
 ```text
-TODO: How to install as official ROS 2 Package
+sudo apt install ros-$ROS_DISTRO-multisensor-calibration
 ```
 
 ## Build from Source
@@ -30,7 +30,7 @@ Clone repository and checkout `noetic` branch:
 
 ```bash
 cd calibration_ws/src
-git clone git@github.com:FraunhoferIOSB/multisensor_calibration.git
+git clone https://github.com/FraunhoferIOSB/multisensor_calibration.git
 cd multisensor_calibration
 git checkout noetic
 cd ../../
@@ -99,7 +99,7 @@ Clone repository:
 
 ```bash
 cd calibration_ws/src
-git clone git@github.com:FraunhoferIOSB/multisensor_calibration.git
+git clone https://github.com/FraunhoferIOSB/multisensor_calibration.git
 ```
 </li>
 

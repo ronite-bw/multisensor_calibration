@@ -4,7 +4,7 @@ To have a unified starting point 'multisensor_calibration' offers a Calibration 
 This can be started without any launch parameters, just by calling 
 
 ```
-ros2 run iosb_Calibration multi_sensor_calibration
+ros2 run multisensor_calibration multi_sensor_calibration
 ```
 
 The [Calibration Configurator](#calibration-configurator) provides a graphical user interface to configure and run one of the following sensor calibrations:

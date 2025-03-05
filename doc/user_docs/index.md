@@ -5,7 +5,7 @@
 
 ## About
 
-'multisensor_calibration' is an actively maintained universal calibration toolbox for assisted, target-based multi-sensor calibration with ROS 1 and ROS 2 support. 
+`multisensor_calibration` is an actively maintained universal calibration toolbox for assisted, target-based multi-sensor calibration with ROS 1 and ROS 2 support. 
 It provides a variety of methods and applications to calibrate complex multi-sensor systems, e.g.
 
 - <b>Extrinsic Camera-LiDAR Calibration</b>,
@@ -21,13 +21,13 @@ The software is licensed under the new [BSD 3-Clause license](license.md). If yo
     ruf2025_multisensor_calibration,
     title={Multi-Sensor Calibration Toolbox for Large-Scale Offroad Robotics},
     author={Boitumelo Ruf and Miguel Granero and Raphael Hagmanns and Janko Petereit},
-    conference={German Robotics Conference (RIG) 2025},
+    conference={German Robotics Conference (GRC) 2025},
     year={2025},
 } 
 ```
 
 The latest source code is available on [GitHub](https://github.com/FraunhoferIOSB/multisensor_calibration).
-Furthermore, the 'multisensor_calibration' is also released as an official package for ROS 2 and can be installed with apt-get.
+Furthermore, the `multisensor_calibration` is also released as an official package for ROS 2 and can be installed with apt-get.
 Since ROS 1 is soon end-of-life, there will be no official release for ROS 1.
 However, there is a version of the source code available for ROS 1 under the branch [noetic](https://github.com/FraunhoferIOSB/multisensor_calibration/tree/noetic).
 

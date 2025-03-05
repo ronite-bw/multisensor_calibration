@@ -74,7 +74,7 @@ Further requirements:
 1. Clone repository:
 
     ```bash
-    git clone git@github.com:FraunhoferIOSB/multisensor_calibration.git
+    git clone https://github.com/FraunhoferIOSB/multisensor_calibration.git
     ```
 
 2. (OPTIONAL) Clone and build 'small_gicp'.<br>If this step is omitted, it will be executed as part of the first build.
