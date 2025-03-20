@@ -39,9 +39,9 @@
 #include <QWidget>
 
 // Rviz
+#include "rviz_common/visualization_manager.hpp"
 #include <rviz_common/display.hpp>
 #include <rviz_common/render_panel.hpp>
-#include "rviz_common/visualization_manager.hpp"
 #include <rviz_common/visualization_frame.hpp>
 
 namespace multisensor_calibration

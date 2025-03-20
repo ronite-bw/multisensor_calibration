@@ -407,8 +407,9 @@ bool PointCloud2ImageNode::readLaunchParameters()
     useExactSync_    = this->declare_parameter<bool>("use_exact_sync", false);
     tmpTransformCoeffs =
       this->declare_parameter<std::vector<double>>("temp_transform", std::vector<double>{});
-    if (!tmpTransformCoeffs.empty()) {
-      useTemporaryTransform_ = true;
+    if (!tmpTransformCoeffs.empty())
+    {
+        useTemporaryTransform_ = true;
     }
 
     //--- sanity check for params
@@ -445,32 +446,36 @@ bool PointCloud2ImageNode::readLaunchParameters()
         imageState_ = stateFindItr->second;
 
     //--- get temporary transform from tmpTransformStr
-    if (useTemporaryTransform_) {
-      //--- check if temp_transform is of correct size
-      if (tmpTransformCoeffs.size() == 7) {
-        RCLCPP_INFO(this->get_logger(),
-                    "[%s] Using temporary transform ((Trans) XYZ | (Rot) "
-                    "XYZW): %f %f %f | "
-                    "%f %f %f %f",
-                    this->get_name(), tmpTransformCoeffs[0],
-                    tmpTransformCoeffs[1], tmpTransformCoeffs[2],
-                    tmpTransformCoeffs[3], tmpTransformCoeffs[4],
-                    tmpTransformCoeffs[5], tmpTransformCoeffs[6]);
+    if (useTemporaryTransform_)
+    {
+        //--- check if temp_transform is of correct size
+        if (tmpTransformCoeffs.size() == 7)
+        {
+            RCLCPP_INFO(this->get_logger(),
+                        "[%s] Using temporary transform ((Trans) XYZ | (Rot) "
+                        "XYZW): %f %f %f | "
+                        "%f %f %f %f",
+                        this->get_name(), tmpTransformCoeffs[0],
+                        tmpTransformCoeffs[1], tmpTransformCoeffs[2],
+                        tmpTransformCoeffs[3], tmpTransformCoeffs[4],
+                        tmpTransformCoeffs[5], tmpTransformCoeffs[6]);
 
-        temporaryTransform_.setOrigin(tf2::Vector3(tmpTransformCoeffs[0],
-                                                   tmpTransformCoeffs[1],
-                                                   tmpTransformCoeffs[2]));
-        temporaryTransform_.setRotation(
-            tf2::Quaternion(tmpTransformCoeffs[3], tmpTransformCoeffs[4],
-                            tmpTransformCoeffs[5], tmpTransformCoeffs[6]));
-      } else {
-        RCLCPP_WARN(this->get_logger(),
-                    "[%s] Wrong format of temp_transform. Please provide as "
-                    "\"X Y Z QX QY QZ QW\". "
-                    "Extracting transform from frame IDs instead.",
-                    this->get_name());
-        useTemporaryTransform_ = false;
-      }
+            temporaryTransform_.setOrigin(tf2::Vector3(tmpTransformCoeffs[0],
+                                                       tmpTransformCoeffs[1],
+                                                       tmpTransformCoeffs[2]));
+            temporaryTransform_.setRotation(
+              tf2::Quaternion(tmpTransformCoeffs[3], tmpTransformCoeffs[4],
+                              tmpTransformCoeffs[5], tmpTransformCoeffs[6]));
+        }
+        else
+        {
+            RCLCPP_WARN(this->get_logger(),
+                        "[%s] Wrong format of temp_transform. Please provide as "
+                        "\"X Y Z QX QY QZ QW\". "
+                        "Extracting transform from frame IDs instead.",
+                        this->get_name());
+            useTemporaryTransform_ = false;
+        }
     }
 
     return true;
