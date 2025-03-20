@@ -70,7 +70,7 @@ void multisensor_calibration::visualizers::PointCloud2PointCloudDistanceNode::on
     maxDistance_            = this->declare_parameter<float>("max_distance", DEFAULT_MAX_DISTANCE);
     clampDistanceThreshold_ = this->declare_parameter<float>("clamp_distance_threshold", DEFAULT_CLAMP_DISTANCE);
     tmpTransformCoeffs =
-        this->declare_parameter<std::vector<double>>("temp_transform", {});
+      this->declare_parameter<std::vector<double>>("temp_transform", std::vector<double>{});
     if (!tmpTransformCoeffs.empty()) {
       useTemporaryTransform_ = true;
     }

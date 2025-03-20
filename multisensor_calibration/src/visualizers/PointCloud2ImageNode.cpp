@@ -47,8 +47,8 @@ PointCloud2ImageNode::PointCloud2ImageNode(rclcpp::NodeOptions iNodeOptions, std
   isInitialized_(false),
   pImgCloudApproxSync_(nullptr),
   pImgCloudExactSync_(nullptr),
-  tfListener_(tfBuffer_),
   tfBuffer_(this->get_clock()),
+  tfListener_(tfBuffer_),
   imageState_(STR_2_IMG_STATE.at(DEFAULT_IMG_STATE_STR)),
   cameraNamespace_(""),
   minDepth_(DEFAULT_MIN_DEPTH),
@@ -406,7 +406,7 @@ bool PointCloud2ImageNode::readLaunchParameters()
     syncQueueSize_   = this->declare_parameter<int>("sync_queue_size", DEFAULT_SYNC_QUEUE_SIZE);
     useExactSync_    = this->declare_parameter<bool>("use_exact_sync", false);
     tmpTransformCoeffs =
-        this->declare_parameter<std::vector<double>>("temp_transform", {});
+      this->declare_parameter<std::vector<double>>("temp_transform", std::vector<double>{});
     if (!tmpTransformCoeffs.empty()) {
       useTemporaryTransform_ = true;
     }

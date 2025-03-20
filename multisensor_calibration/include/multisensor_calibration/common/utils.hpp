@@ -69,7 +69,6 @@
 
 // multisensor_calibration
 #include "../calibration_target/CalibrationTarget.hpp"
-#include "../calibration_target/Cutout.h"
 #include "common.h"
 
 namespace multisensor_calibration
@@ -596,7 +595,7 @@ inline void computeNormalVectorsForPointCloud(const typename pcl::PointCloud<Poi
     //--- neighboring ring
     for (int ringIdx = 0; ringIdx < nLidarRings; ++ringIdx)
     {
-        for (int pntIdxItr = 0; pntIdxItr < pRingIndices[ringIdx]->size(); ++pntIdxItr)
+        for (std::size_t pntIdxItr = 0; pntIdxItr < pRingIndices[ringIdx]->size(); ++pntIdxItr)
         {
             // current point for which the normal vector is to be estimated
             PointInT queryPoint = ipCloud->at(pRingIndices[ringIdx]->at(pntIdxItr));

@@ -230,8 +230,8 @@ class PointCloud2ImageNode : public rclcpp::Node
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pPub_;
 
     /// transform listener to get the transform between camera and point cloud
-    tf2_ros::TransformListener tfListener_;
     tf2_ros::Buffer tfBuffer_;
+    tf2_ros::TransformListener tfListener_;
 
     /// State of image which is received.
     EImageState imageState_;
