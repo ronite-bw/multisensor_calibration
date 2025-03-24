@@ -580,7 +580,7 @@ void CalibrationConfigDialog::handleRootDirPushButtonClicked()
 
     if (!newRootDir.isEmpty())
     {
-        calibrationRootDir_ = newRootDir;
+        calibrationRootDir_.setPath(newRootDir);
 
         updateRootDirLabelContents();
         populateWsFolderComboBox();

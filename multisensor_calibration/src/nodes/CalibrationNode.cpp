@@ -106,7 +106,7 @@ int main(int argc, char** argv)
 #endif
 
     pGui.reset(new multisensor_calibration::CameraLidarCalibrationGui(TARGET_NAME,
-                                                               multisensor_calibration::GUI_SUB_NAMESPACE));
+                                                                      multisensor_calibration::GUI_SUB_NAMESPACE));
 
 #elif TARGET == EXTRINSIC_CAMERA_REFERENCE_CALIBRATION_TARGET
 
@@ -141,7 +141,7 @@ int main(int argc, char** argv)
 #endif
 
     pGui.reset(new multisensor_calibration::CameraReferenceCalibrationGui(TARGET_NAME,
-                                                                   multisensor_calibration::GUI_SUB_NAMESPACE));
+                                                                          multisensor_calibration::GUI_SUB_NAMESPACE));
 #elif TARGET == EXTRINSIC_LIDAR_LIDAR_CALIBRATION_TARGET
 
     /*
@@ -175,7 +175,7 @@ int main(int argc, char** argv)
 #endif
 
     pGui.reset(new multisensor_calibration::LidarLidarCalibrationGui(TARGET_NAME,
-                                                              multisensor_calibration::GUI_SUB_NAMESPACE));
+                                                                     multisensor_calibration::GUI_SUB_NAMESPACE));
 #elif TARGET == EXTRINSIC_LIDAR_REFERENCE_CALIBRATION_TARGET
 
     /*

@@ -159,19 +159,19 @@ void CameraLidarCalibrationGui::loadVisualizer()
             }
 
             std::vector<double> temporaryTransformCoeffs = {
-                extrinsicPose.position.x,    extrinsicPose.position.y,
-                extrinsicPose.position.z,    extrinsicPose.orientation.x,
-                extrinsicPose.orientation.y, extrinsicPose.orientation.z,
-                extrinsicPose.orientation.w};
+              extrinsicPose.position.x, extrinsicPose.position.y,
+              extrinsicPose.position.z, extrinsicPose.orientation.x,
+              extrinsicPose.orientation.y, extrinsicPose.orientation.z,
+              extrinsicPose.orientation.w};
 
             rclcpp::NodeOptions options;
 
             options.parameter_overrides({
-                rclcpp::Parameter("image_state",
-                                  intrinsicResponse.get()->image_state),
-                rclcpp::Parameter("min_depth", 0.5),
-                rclcpp::Parameter("max_depth", 10.0),
-                rclcpp::Parameter("temp_transform", temporaryTransformCoeffs),
+              rclcpp::Parameter("image_state",
+                                intrinsicResponse.get()->image_state),
+              rclcpp::Parameter("min_depth", 0.5),
+              rclcpp::Parameter("max_depth", 10.0),
+              rclcpp::Parameter("temp_transform", temporaryTransformCoeffs),
             });
             options.use_intra_process_comms(true);
             std::vector<std::string> remapping_arguments = {

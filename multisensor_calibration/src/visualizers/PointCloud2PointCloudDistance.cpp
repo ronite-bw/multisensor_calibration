@@ -25,8 +25,8 @@
 #define UNUSED(expr) (void)(expr);
 
 //--- TOPIC NAMES
-static const std::string INPUT_TOPIC_NAME_PREFIX   = "cloud";
-static const std::string OUTPUT_CLOUD_TOPIC_SUFFIX = "enhanced";
+static const std::string INPUT_TOPIC_NAME_PREFIX      = "cloud";
+static const std::string OUTPUT_CLOUD_TOPIC_SUFFIX    = "enhanced";
 static const std::string INPUT_CALIBRATION_TOPIC_NAME = "calibration";
 
 //--- DEFAULT VALUES
@@ -70,9 +70,10 @@ void multisensor_calibration::visualizers::PointCloud2PointCloudDistanceNode::on
     maxDistance_            = this->declare_parameter<float>("max_distance", DEFAULT_MAX_DISTANCE);
     clampDistanceThreshold_ = this->declare_parameter<float>("clamp_distance_threshold", DEFAULT_CLAMP_DISTANCE);
     tmpTransformCoeffs =
-        this->declare_parameter<std::vector<double>>("temp_transform", {});
-    if (!tmpTransformCoeffs.empty()) {
-      useTemporaryTransform_ = true;
+      this->declare_parameter<std::vector<double>>("temp_transform", std::vector<double>{});
+    if (!tmpTransformCoeffs.empty())
+    {
+        useTemporaryTransform_ = true;
     }
 
     //--- sanity check for params
@@ -116,31 +117,35 @@ void multisensor_calibration::visualizers::PointCloud2PointCloudDistanceNode::on
     }
 
     //--- get temporary transform from tmpTransformStr
-    if (useTemporaryTransform_) {
-      //--- check if temp_transform is of correct size
-      if (tmpTransformCoeffs.size() == 7) {
-        RCLCPP_INFO(this->get_logger(),
-                    "Using temporary transform (XYZ | RPY) "
-                    "between cloud_1 (child) and cloud_0 (parent): %f %f %f | "
-                    "%f %f %f %f",
-                    tmpTransformCoeffs[0], tmpTransformCoeffs[1],
-                    tmpTransformCoeffs[2], tmpTransformCoeffs[3],
-                    tmpTransformCoeffs[4], tmpTransformCoeffs[5],
-                    tmpTransformCoeffs[6]);
+    if (useTemporaryTransform_)
+    {
+        //--- check if temp_transform is of correct size
+        if (tmpTransformCoeffs.size() == 7)
+        {
+            RCLCPP_INFO(this->get_logger(),
+                        "Using temporary transform (XYZ | RPY) "
+                        "between cloud_1 (child) and cloud_0 (parent): %f %f %f | "
+                        "%f %f %f %f",
+                        tmpTransformCoeffs[0], tmpTransformCoeffs[1],
+                        tmpTransformCoeffs[2], tmpTransformCoeffs[3],
+                        tmpTransformCoeffs[4], tmpTransformCoeffs[5],
+                        tmpTransformCoeffs[6]);
 
-        temporaryTransform_.setOrigin(tf2::Vector3(tmpTransformCoeffs[0],
-                                                   tmpTransformCoeffs[1],
-                                                   tmpTransformCoeffs[2]));
-        temporaryTransform_.setRotation(
-            tf2::Quaternion(tmpTransformCoeffs[3], tmpTransformCoeffs[4],
-                            tmpTransformCoeffs[5], tmpTransformCoeffs[6]));
-      } else {
-        RCLCPP_WARN(this->get_logger(),
-                    "Wrong format of temp_transform. Please provide as \"X Y Z "
-                    "R P Y\". "
-                    "Extracting transform from frame IDs instead.");
-        useTemporaryTransform_ = false;
-      }
+            temporaryTransform_.setOrigin(tf2::Vector3(tmpTransformCoeffs[0],
+                                                       tmpTransformCoeffs[1],
+                                                       tmpTransformCoeffs[2]));
+            temporaryTransform_.setRotation(
+              tf2::Quaternion(tmpTransformCoeffs[3], tmpTransformCoeffs[4],
+                              tmpTransformCoeffs[5], tmpTransformCoeffs[6]));
+        }
+        else
+        {
+            RCLCPP_WARN(this->get_logger(),
+                        "Wrong format of temp_transform. Please provide as \"X Y Z "
+                        "R P Y\". "
+                        "Extracting transform from frame IDs instead.");
+            useTemporaryTransform_ = false;
+        }
     }
 
     //--- initialize subscriber and register callback

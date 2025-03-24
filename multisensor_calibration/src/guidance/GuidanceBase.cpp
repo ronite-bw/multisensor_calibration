@@ -63,7 +63,7 @@ bool GuidanceBase::initializeServices()
     //--- reset service
     pResetSrv_ =
       pNode_->create_service<multisensor_calibration_interface::srv::ResetCalibration>(RESET_SRV_NAME,
-                                                                                std::bind(&GuidanceBase::onReset, this, std::placeholders::_1, std::placeholders::_2));
+                                                                                       std::bind(&GuidanceBase::onReset, this, std::placeholders::_1, std::placeholders::_2));
 
     return pResetSrv_ != nullptr;
 }
@@ -186,7 +186,7 @@ void GuidanceBase::getCalibrationMetaData()
     //--- get calibration meta data
     pMetaDataClient_ =
       pNode_->create_client<multisensor_calibration_interface::srv::CalibrationMetaData>(calibratorNodeName_ +
-                                                                                  "/" + REQUEST_META_DATA_SRV_NAME);
+                                                                                         "/" + REQUEST_META_DATA_SRV_NAME);
 
     bool isServiceAvailable = false;
     const int MAX_TRIES     = 10;
@@ -201,8 +201,8 @@ void GuidanceBase::getCalibrationMetaData()
     if (isServiceAvailable)
     {
 
-        auto request  = std::make_shared<multisensor_calibration_interface::srv::CalibrationMetaData::Request>();
-        auto future   = pMetaDataClient_->async_send_request(
+        auto request = std::make_shared<multisensor_calibration_interface::srv::CalibrationMetaData::Request>();
+        auto future  = pMetaDataClient_->async_send_request(
           request,
           [this](rclcpp::Client<CalibrationMetadataSrv>::SharedFuture response)
           {
@@ -225,8 +225,8 @@ void GuidanceBase::getCalibrationMetaData()
               else
               {
                   RCLCPP_ERROR(pNode_->get_logger(),
-                                 "Failure in getting calibration meta data.\n"
-                                   "Check if calibration node is initialized!");
+                               "Failure in getting calibration meta data.\n"
+                               "Check if calibration node is initialized!");
               }
           });
     }
@@ -244,7 +244,7 @@ bool GuidanceBase::getInitialSensorPose()
     //--- get sensor extrinsics
     extrinsicsClient_ =
       pNode_->create_client<multisensor_calibration_interface::srv::SensorExtrinsics>(calibratorNodeName_ +
-                                                                               "/" + REQUEST_SENSOR_EXTRINSICS_SRV_NAME);
+                                                                                      "/" + REQUEST_SENSOR_EXTRINSICS_SRV_NAME);
 
     bool isServiceAvailable = false;
     const int MAX_TRIES     = 10;
@@ -263,7 +263,7 @@ bool GuidanceBase::getInitialSensorPose()
     }
 
     auto request = std::make_shared<multisensor_calibration_interface::srv::SensorExtrinsics::Request>();
-    auto future   = extrinsicsClient_->async_send_request(
+    auto future  = extrinsicsClient_->async_send_request(
       request, [this](rclcpp::Client<multisensor_calibration_interface::srv::SensorExtrinsics>::SharedFuture response)
       {
           auto& POSE = response.get()->extrinsics;
