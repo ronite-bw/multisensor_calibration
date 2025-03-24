@@ -2,8 +2,8 @@
 Changelog for package multisensor_calibration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.0.1 (2025-03-24)
+------------------
 * refactor: remove compilation warnings
 * fix: remove deprecated pointer type
 * Contributors: Miguel Granero
