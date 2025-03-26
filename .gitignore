@@ -113,6 +113,9 @@ CATKIN_IGNORE
 # Ignore code-workspaces
 *.code-workspace
 
+# Code config
+.vscode
+
 # docs
 Doxyfile
 /doc/*
