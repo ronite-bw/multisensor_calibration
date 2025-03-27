@@ -101,18 +101,8 @@ find_package(OpenCV REQUIRED COMPONENTS
     core
     calib3d
 )
-
-# if small gicp does not exist clone and build
-if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/../thirdparty/install/small_gicp/lib/cmake/small_gicp")
-    execute_process(COMMAND bash ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/clone_small_gicp.sh)
-    execute_process(COMMAND bash ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/build_and_install_small_gicp.sh)
-endif()
-
-find_package(small_gicp REQUIRED
-             PATHS "${CMAKE_CURRENT_LIST_DIR}/../thirdparty/install/small_gicp/lib/cmake/small_gicp")
-file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/../.git/modules/thirdparty/small_gicp/HEAD" 
-             SMALL_GICP_HEAD_COMMIT_HASH
-         )
+find_package(small_gicp_vendor REQUIRED)
+find_package(small_gicp REQUIRED)
          
 
 find_package(OpenMP)
@@ -144,7 +134,7 @@ set(COMMON_COMPILE_DEFINITIONS
     -DEXTRINSIC_LIDAR_REFERENCE_CALIBRATION_TARGET=4
     -DEXTRINSIC_LIDAR_VEHICLE_CALIBRATION_TARGET=5
     -DMULTI_THREADED
-    -DSMALL_GICP_HEAD_COMMIT_HASH="${SMALL_GICP_HEAD_COMMIT_HASH}"
+    -DSMALL_GICP_HEAD_COMMIT_HASH="${small_gicp_VERSION}"
 )
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     set(COMMON_COMPILE_DEFINITIONS ${COMMON_COMPILE_DEFINITIONS}
@@ -168,6 +158,8 @@ set(DEPENDENCIES
   geometry_msgs
   visualization_msgs
   multisensor_calibration_interface
+  small_gicp
+  small_gicp_vendor
 )
 
 
@@ -251,9 +243,9 @@ target_compile_definitions(${LIBRARY_TARGET_NAME} PRIVATE
 )
 ament_target_dependencies(${LIBRARY_TARGET_NAME} 
     ${DEPENDENCIES}
-    small_gicp
 )
 ament_export_targets(export_${LIBRARY_TARGET_NAME} HAS_LIBRARY_TARGET)
+ament_export_dependencies(${DEPENDENCIES})
 
 rclcpp_components_register_nodes(${LIBRARY_TARGET_NAME} "multisensor_calibration::visualizers::PointCloud2PointCloudDistanceNode")
 rclcpp_components_register_nodes(${LIBRARY_TARGET_NAME} "multisensor_calibration::visualizers::PointCloud2ImageNode")

@@ -146,3 +146,9 @@ multisensor_calibration/launch/*
 !multisensor_calibration/launch/multi_sensor_calib_example.launch
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,ros,c++
+
+# Debian packaging
+*.deb
+*.ddeb
+debian/
+.obj*/
