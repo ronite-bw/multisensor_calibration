@@ -21,7 +21,7 @@ The software is licensed under the new [BSD 3-Clause license](license.md). If yo
 } 
 ```
 
-The `multisensor_calibration` is released as an official package for ROS 2 and can be installed with apt-get.
+The `multisensor_calibration` can currently only be installed manually. We are actively working towards releasing it as an official package for ROS 2 so it can be installed with apt.
 Since ROS 1 is soon end-of-life, there will be no official release for ROS 1.
 However, there is a version of the source code available for ROS 1 under the branch [noetic](https://github.com/FraunhoferIOSB/multisensor_calibration/tree/noetic).
 
