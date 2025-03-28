@@ -34,13 +34,15 @@
   <depend>tinyxml2</depend>
   <depend>urdf</depend>
   <depend>rviz_common</depend>
+  <depend>multisensor_calibration_interface</depend>
+
+  <depend>small_gicp_vendor</depend>
 
   <depend>std_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>visualization_msgs</depend>
 
-  <depend>multisensor_calibration_interface</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
