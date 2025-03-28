@@ -2,6 +2,12 @@
 Changelog for package multisensor_calibration_interface
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* fix: export library target
+* fix: read version from package.xml and not from git
+* Contributors: Miguel Granero
+
 2.0.1 (2025-03-24)
 ------------------
 
