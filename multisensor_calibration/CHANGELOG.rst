@@ -2,8 +2,8 @@
 Changelog for package multisensor_calibration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.0.3 (2025-03-28)
+------------------
 * refactor: remove unused rviz config files
 * fix: set LICENSE path to own package for bin packaging
 * feat: add LICENSE file to single packages
