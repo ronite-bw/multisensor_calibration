@@ -2,8 +2,8 @@
 Changelog for package multisensor_calibration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.0.2 (2025-03-28)
+------------------
 * feat: create small_gicp_vendor package
 * fix: export library target
 * fix: read version from package.xml and not from git
