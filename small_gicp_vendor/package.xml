@@ -6,7 +6,7 @@
   <description>Vendor package for small_gicp. This is just a wrapper to provide ExternalProject build</description>
   <maintainer email="Miguel.Granero@iosb.fraunhofer.de">miguel</maintainer>
   <license>MIT</license> <!-- small_gicp -->
-  <license>BSD3</license> <!-- small_gicp_vendor -->
+  <license>BSD</license> <!-- small_gicp_vendor -->
 
   <url type="website">https://github.com/koide3/small_gicp</url>
 
