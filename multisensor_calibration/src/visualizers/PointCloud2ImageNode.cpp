@@ -5,7 +5,7 @@
 #include <iostream>
 
 // ROS
-#include <cv_bridge/cv_bridge.hpp>
+#include <cv_bridge/cv_bridge.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <rclcpp/wait_for_message.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -225,7 +225,7 @@ bool PointCloud2ImageNode::getTransformBetweenTfFrames(
     if (useTemporaryTransform_)
     {
         oTransform                         = geometry_msgs::msg::TransformStamped();
-        oTransform.header.stamp            = this->get_clock()->now();
+        oTransform.header.stamp            = rclcpp::Clock().now();
         oTransform.header.frame_id         = iSourceFrame;
         oTransform.child_frame_id          = iTargetFrame;
         oTransform.transform.rotation.w    = temporaryTransform_.getRotation().getW();

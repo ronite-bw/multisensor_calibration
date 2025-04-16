@@ -14,7 +14,7 @@
 #include <cmath>
 
 // ROS
-#include <cv_bridge/cv_bridge.hpp>
+#include <cv_bridge/cv_bridge.h>
 #include <pcl_conversions/pcl_conversions.h>
 
 // PCL
@@ -509,9 +509,15 @@ bool GuidedCameraLidarTargetPlacementNode::initializeSubscribers()
     if (!isSuccessful)
         return false;
 
+    rmw_qos_profile_t qos_profile = rmw_qos_profile_default;
+    qos_profile.history           = RMW_QOS_POLICY_HISTORY_KEEP_LAST;
+    qos_profile.depth             = 5;
+    qos_profile.reliability       = RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
+    rclcpp::QoS qos(rclcpp::QoSInitialization::from_rmw(qos_profile), qos_profile);
+
     //--- initialize image subscriber
     pCameraImageSubsc_ = this->create_subscription<sensor_msgs::msg::Image>(
-      pCalibrationMetaData_->src_topic_name, 10,
+      pCalibrationMetaData_->src_topic_name, qos,
       std::bind(&GuidedCameraLidarTargetPlacementNode::onImageReceived,
                 this, std::placeholders::_1));
 
@@ -534,7 +540,8 @@ bool GuidedCameraLidarTargetPlacementNode::initializeTimers()
 
     //--- initialize trigger to call routine to get intrinsic camera data
     pCamIntrinsicsTimer_ = this->create_wall_timer(
-      std::chrono::seconds(1), std::bind(&GuidedCameraLidarTargetPlacementNode::getCameraIntrinsics, this), nullptr, false);
+      std::chrono::seconds(1), std::bind(&GuidedCameraLidarTargetPlacementNode::getCameraIntrinsics, this), nullptr);
+    pCamIntrinsicsTimer_->cancel();
 
     return pCamIntrinsicsTimer_ != nullptr && baseRet;
 }

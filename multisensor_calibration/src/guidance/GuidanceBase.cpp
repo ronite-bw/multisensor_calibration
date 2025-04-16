@@ -84,7 +84,8 @@ bool GuidanceBase::initializeSubscribers()
 bool GuidanceBase::initializeTimers()
 {
     //--- initialize trigger to call routine to get calibration meta data
-    pCalibMetaDataTimer_ = pNode_->create_wall_timer(std::chrono::seconds(1), std::bind(&GuidanceBase::getCalibrationMetaData, this), nullptr, false);
+    pCalibMetaDataTimer_ = pNode_->create_wall_timer(std::chrono::seconds(1), std::bind(&GuidanceBase::getCalibrationMetaData, this), nullptr);
+    pCalibMetaDataTimer_->cancel();
 
     return pCalibMetaDataTimer_ != nullptr;
 }

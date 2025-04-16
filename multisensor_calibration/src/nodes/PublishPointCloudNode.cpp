@@ -112,7 +112,7 @@ class PointCloudPublisher : public rclcpp::Node
   private:
     void timer_callback()
     {
-        cloudMsg_.header.stamp = this->get_clock()->now();
+        cloudMsg_.header.stamp = rclcpp::Clock().now();
         pPublisher_->publish(cloudMsg_);
     }
 

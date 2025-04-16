@@ -15,7 +15,7 @@
 #include <type_traits>
 
 // ROS
-#include <cv_bridge/cv_bridge.hpp>
+#include <cv_bridge/cv_bridge.h>
 
 // OpenCV
 #include <opencv2/calib3d.hpp>

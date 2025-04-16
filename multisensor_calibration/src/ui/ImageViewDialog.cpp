@@ -13,7 +13,7 @@
 #include <QMessageBox>
 
 // ROS
-#include <cv_bridge/cv_bridge.hpp>
+#include <cv_bridge/cv_bridge.h>
 
 // multisensor_calibration
 #include "ui_ViewDialog.h"

@@ -86,7 +86,7 @@ bool GuidedLidarLidarTargetPlacementNode::initializeTimers()
 
     //--- initialize trigger to call routine to load the robot workspace
     publishGuidanceBoxTimer_ = this->create_wall_timer(
-      std::chrono::seconds(1), std::bind(&GuidedLidarLidarTargetPlacementNode::publishGuidanceBox, this), nullptr, true);
+      std::chrono::seconds(1), std::bind(&GuidedLidarLidarTargetPlacementNode::publishGuidanceBox, this), nullptr);
 
     return true;
 }
@@ -123,7 +123,7 @@ void GuidedLidarLidarTargetPlacementNode::publishGuidanceBox() const
 
     //--- header
     markerMsg.header.frame_id = pCalibrationMetaData_->ref_frame_id;
-    markerMsg.header.stamp    = this->get_clock()->now();
+    markerMsg.header.stamp    = rclcpp::Clock().now();
 
     //--- Set the namespace and id for this marker.  This serves to create a unique ID
     //--- Any marker sent with the same namespace and id will overwrite the old one

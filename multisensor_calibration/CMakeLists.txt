@@ -86,7 +86,7 @@ find_package(pcl_ros REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
-find_package(tinyxml2 REQUIRED)
+find_package(tinyxml2_vendor REQUIRED)
 find_package(urdf REQUIRED)
 find_package(rviz_common REQUIRED)
 
@@ -150,7 +150,7 @@ set(DEPENDENCIES
   pcl_conversions
   tf2
   tf2_ros
-  tinyxml2
+  tinyxml2_vendor
   urdf
   rviz_common
   std_msgs

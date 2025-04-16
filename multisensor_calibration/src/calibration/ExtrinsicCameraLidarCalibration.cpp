@@ -380,9 +380,14 @@ bool ExtrinsicCameraLidarCalibration::initializeSubscribers(rclcpp::Node* ipNode
           initializeSubscribers(ipNode))
         return false;
 
+    rmw_qos_profile_t qos = rmw_qos_profile_default;
+    qos.history           = RMW_QOS_POLICY_HISTORY_KEEP_LAST;
+    qos.depth             = 5;
+    qos.reliability       = RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
+
     //--- subscribe to topics
-    imageSubsc_.subscribe(ipNode, cameraImageTopic_, "raw");
-    cloudSubsc_.subscribe(ipNode, lidarCloudTopic_);
+    imageSubsc_.subscribe(ipNode, cameraImageTopic_, "raw", qos);
+    cloudSubsc_.subscribe(ipNode, lidarCloudTopic_, qos);
 
     //--- initialize synchronizers
     if (useExactSync_)

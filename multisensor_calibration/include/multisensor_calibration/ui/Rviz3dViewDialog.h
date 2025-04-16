@@ -43,6 +43,7 @@
 #include <rviz_common/display.hpp>
 #include <rviz_common/render_panel.hpp>
 #include <rviz_common/visualization_frame.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 
 namespace multisensor_calibration
 {
@@ -228,6 +229,11 @@ class Rviz3dViewDialog : public QDialog
     /// List of topic names on which the clouds holding the detected calibration targets are
     /// published.
     std::vector<std::string> targetCloudTopicNames_;
+
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_publisher_;
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_subscriber_;
+
+    void pointCloudCb(const sensor_msgs::msg::PointCloud2::ConstSharedPtr original_cloud_msg);
 };
 
 } // namespace multisensor_calibration

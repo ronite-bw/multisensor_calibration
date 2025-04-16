@@ -11,7 +11,7 @@
 #include <fstream>
 
 // ROS
-#include <cv_bridge/cv_bridge.hpp>
+#include <cv_bridge/cv_bridge.h>
 #include <pcl_conversions/pcl_conversions.h>
 
 // PCL

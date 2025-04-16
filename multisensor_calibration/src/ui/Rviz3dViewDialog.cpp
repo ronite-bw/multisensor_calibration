@@ -133,6 +133,25 @@ bool Rviz3dViewDialog::addMarkerCornersCloud(const std::string& iTopicName)
 //==================================================================================================
 bool Rviz3dViewDialog::addRawSensorCloud(const std::string& iTopicName)
 {
+     if (!pRosNodeAbs_ || !pRosNodeAbs_->get_raw_node()) {
+        std::cerr << "ROS node abstraction is not initialized!" << std::endl;
+        return false;
+    }
+
+    auto raw_node = pRosNodeAbs_->get_raw_node();
+
+    std::string republished_topic = iTopicName + "_rviz";
+
+    // Create publisher
+    cloud_publisher_ = raw_node->create_publisher<sensor_msgs::msg::PointCloud2>(republished_topic, rclcpp::QoS(5).reliable().durability_volatile());
+
+
+    cloud_subscriber_ = raw_node->create_subscription<sensor_msgs::msg::PointCloud2>(
+        iTopicName,
+        rclcpp::QoS(5).best_effort().durability_volatile(),
+        std::bind(&Rviz3dViewDialog::pointCloudCb, this, std::placeholders::_1));
+
+
     //--- if visualization manager is not null, create display
     if (pVisManager_)
     {
@@ -141,7 +160,7 @@ bool Rviz3dViewDialog::addRawSensorCloud(const std::string& iTopicName)
             "rviz_default_plugins/PointCloud2",
             "Raw Sensor Cloud " + QString::number(sensorCloudTopicNames_.size()),
             true);
-        pCloudDisplay_->subProp("Topic")->setValue(QString::fromStdString(iTopicName));
+        pCloudDisplay_->subProp("Topic")->setValue(QString::fromStdString(republished_topic));
         pCloudDisplay_->subProp("Use Fixed Frame")->setValue("true");
         pCloudDisplay_->subProp("Color Transformer")->setValue("FlatColor");
         pCloudDisplay_->subProp("Color")->setValue("255; 255; 255");
@@ -150,9 +169,9 @@ bool Rviz3dViewDialog::addRawSensorCloud(const std::string& iTopicName)
     }
 
     //--- if topic name not in list, add to list
-    if (std::find(sensorCloudTopicNames_.begin(), sensorCloudTopicNames_.end(), iTopicName) ==
+    if (std::find(sensorCloudTopicNames_.begin(), sensorCloudTopicNames_.end(), republished_topic) ==
         sensorCloudTopicNames_.end())
-        sensorCloudTopicNames_.push_back(iTopicName);
+        sensorCloudTopicNames_.push_back(republished_topic);
 
     return true;
 }
@@ -338,6 +357,10 @@ void Rviz3dViewDialog::initRenderPanel()
         addCalibTargetCloud(topicName);
 
     isInitialized_ = true;
+}
+
+void Rviz3dViewDialog::pointCloudCb(const sensor_msgs::msg::PointCloud2::ConstSharedPtr original_cloud_msg) {
+    cloud_publisher_->publish(*original_cloud_msg);
 }
 
 } // namespace multisensor_calibration

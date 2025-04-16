@@ -354,7 +354,7 @@ void multisensor_calibration::visualizers::PointCloud2PointCloudDistanceNode::pr
                     transform.header.frame_id = pointCloudMsgHeaders_[s].frame_id;
                     transform.child_frame_id  = pointCloudMsgHeaders_[t].frame_id;
 
-                    transform.header.stamp            = this->get_clock()->now();
+                    transform.header.stamp            = rclcpp::Clock().now();
                     transform.transform.rotation.w    = temporaryTransform_.getRotation().getW();
                     transform.transform.rotation.x    = temporaryTransform_.getRotation().getX();
                     transform.transform.rotation.y    = temporaryTransform_.getRotation().getY();
@@ -368,7 +368,7 @@ void multisensor_calibration::visualizers::PointCloud2PointCloudDistanceNode::pr
                     transform.header.frame_id = pointCloudMsgHeaders_[s].frame_id;
                     transform.child_frame_id  = pointCloudMsgHeaders_[t].frame_id;
 
-                    transform.header.stamp            = this->get_clock()->now();
+                    transform.header.stamp            = rclcpp::Clock().now();
                     transform.transform.rotation.w    = temporaryTransform_.inverse().getRotation().getW();
                     transform.transform.rotation.x    = temporaryTransform_.inverse().getRotation().getX();
                     transform.transform.rotation.y    = temporaryTransform_.inverse().getRotation().getY();
