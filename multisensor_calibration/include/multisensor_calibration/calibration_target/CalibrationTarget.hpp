@@ -89,7 +89,7 @@ struct CalibrationTarget
     /// Pointer to ArUco board
     cv::Ptr<cv::aruco::Board> pArucoBoard = nullptr;
 
-    /// Pointer to ArUco dictoionary used (Default DICT_6X6_250)
+    /// Pointer to ArUco dictoionary used (DICT_4X4_50)
     cv::Ptr<cv::aruco::Dictionary> pArucoDictionary = nullptr;
 
     /**
@@ -99,7 +99,7 @@ struct CalibrationTarget
     void createArUcoBoard()
     {
         //--- create ArUco dictionary
-        pArucoDictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
+        pArucoDictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_4X4_50);
 
         //--- create arUco board
 
