@@ -174,9 +174,10 @@ void CameraLidarCalibrationGui::loadVisualizer()
               rclcpp::Parameter("temp_transform", temporaryTransformCoeffs),
             });
             options.use_intra_process_comms(true);
+            auto lidar_topic = pCalibrationMetaData_->ref_topic_name + "_rviz";
             std::vector<std::string> remapping_arguments = {
               //   "--ros-args", "--remap",
-              "pointcloud:=" + pCalibrationMetaData_->ref_topic_name,
+              "pointcloud:=" + lidar_topic,
               "image:=" + pCalibrationMetaData_->src_topic_name,
               "image/camera_info:=" + utils::image2CameraInfoTopic(pCalibrationMetaData_->src_topic_name, ""),
               "calibration:=" + appTitle_ + "/" + CALIB_RESULT_TOPIC_NAME};

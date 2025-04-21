@@ -58,7 +58,7 @@ struct LidarTargetDetectionParameters
 
     DynamicParameter<double>
       max_range = DynamicParameter<double>(
-        6.0,
+        3.0,
         "Maximum range at which to filter the incomming point cloud prior to any processing. "
         "Any point with a range (absolute distance from sensor) larger than max_range will be "
         "discarded. Turn to 0 to switch off.",
