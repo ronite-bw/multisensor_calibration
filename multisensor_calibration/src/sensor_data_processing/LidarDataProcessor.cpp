@@ -105,7 +105,7 @@ LidarDataProcessor::EProcessingResult LidarDataProcessor::processData(
             double z      = static_cast<double>(itr->z);
             double range2 = x * x + y * y + z * z;
 
-            if (range2 <= THRESHOLD_2 && range2 ? > 0)
+            if (range2 <= THRESHOLD_2 && range2 > 0)
                 pTmpCloud->push_back(*itr);
         }
 
