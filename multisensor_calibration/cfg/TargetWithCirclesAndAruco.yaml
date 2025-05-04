@@ -17,13 +17,12 @@ marker_positions:       # x,y marker positions (top-left) on board relative to c
            -0.55, -0.15]
 cutouts:                # Cutouts (id + parameters) stored as a single row matrix. x: rightwards, y: upwards
     rows: 1
-    cols: 16
+    cols: 12
     dt: f
     data: [1, -0.2, 0.15, 0.1,
-           1, 0.2, 0.15, 0.1,
            1, 0.2, -0.15, 0.1,
            1, -0.2, -0.15, 0.1]
-min_marker_detection: 3 # minimum number of markers that need to be detected.
+min_marker_detection: 2 # minimum number of markers that need to be detected.
 cad_model_mesh: "" # relative file path to CAD model of the calibration target as mesh
 cad_model_cloud: "" # relative file path to CAD model of the calibration target as cloud
 
