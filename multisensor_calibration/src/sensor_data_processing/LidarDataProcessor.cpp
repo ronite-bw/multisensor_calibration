@@ -105,7 +105,7 @@ LidarDataProcessor::EProcessingResult LidarDataProcessor::processData(
             double z      = static_cast<double>(itr->z);
             double range2 = x * x + y * y + z * z;
 
-            if (range2 <= THRESHOLD_2 && range2 > 0)
+            if (range2 <= THRESHOLD_2 && range2>0.0)
                 pTmpCloud->push_back(*itr);
         }
 
@@ -179,14 +179,21 @@ LidarDataProcessor::EProcessingResult LidarDataProcessor::processData(
         pClusterCloud->clear();
         extractIndices.filter(*pClusterCloud);
 
-        // DEBUG VISUALIZATION
+        // DEBUG VISUALIZATION - NATI: Perhaps should be changed
 #if 0
         {
+            if (!pClusterCloud || pClusterCloud->empty())
+            {
+                std::cerr << "Error: Point cloud is null or empty!" << std::endl;
+                continue;
+            }
             boost::shared_ptr<pcl::visualization::PCLVisualizer> pViewer(
               new pcl::visualization::PCLVisualizer("DEBUG Viewer"));
-            pcl::visualization::PointCloudColorHandlerGenericField<PointType>
-              pointCloudColorHandler(pClusterCloud, "intensity");
-            pViewer->addPointCloud<PointType>(pClusterCloud, pointCloudColorHandler, "id");
+            // pcl::visualization::PointCloudColorHandlerGenericField<InputPointType>
+            //   pointCloudColorHandler(pClusterCloud, "intensity");
+            pcl::visualization::PointCloudColorHandlerCustom<InputPointType> pointCloudColorHandler(
+         pClusterCloud, 0, 255, 0);
+            pViewer->addPointCloud<InputPointType>(pClusterCloud, pointCloudColorHandler, "id");
             pViewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE,
                                                       3,
                                                       "id");
@@ -213,7 +220,9 @@ LidarDataProcessor::EProcessingResult LidarDataProcessor::processData(
             // pViewer->addArrow(p3, p1, 0, 255, 0, false, "up");
 
             pViewer->initCameraParameters();
-            pViewer->setCameraPosition(0, 0, 0, 0, -1, 0, 0, 0, 1);
+            //pViewer->setCameraPosition(0, 0, 0, 0, -1, 0, 0, 0, 1);
+            pViewer->setCameraPosition(0, 0, -10, 0, 0, 1, 0, -1, 0);
+
             while (!pViewer->wasStopped())
             {
                 pViewer->spinOnce(50);
@@ -227,11 +236,13 @@ LidarDataProcessor::EProcessingResult LidarDataProcessor::processData(
         //-- do size filter test
         // Transformation of the bounding box to fit the cluster cloud.
         Eigen::Matrix4f bboxTransform;
-        bool isRegionOfInterest = testClusterSize(pClusterCloud, bboxTransform);
+
+        auto pFilteredClusteredCloud = filterNearMaxZ(pClusterCloud);
+        bool isRegionOfInterest = testClusterSize(pFilteredClusteredCloud, bboxTransform);
         if (isRegionOfInterest)
         {
             //--- added tested cluster cloud to roi cloud
-            pRoisCloud_->insert(pRoisCloud_->end(), pClusterCloud->begin(), pClusterCloud->end());
+            pRoisCloud_->insert(pRoisCloud_->end(), pFilteredClusteredCloud->begin(), pFilteredClusteredCloud->end());
 
             //--- if processing level is preview, continue with looping over individual regions
             if (iProcLevel == PREVIEW)
@@ -241,7 +252,7 @@ LidarDataProcessor::EProcessingResult LidarDataProcessor::processData(
 
             // plane parameters of the planar model used for projecting the cluster cloud
             Eigen::VectorXf planeModelCoefficients;
-            bool isSuccessful = projectClusterToPlanarModel(pClusterCloud,
+            bool isSuccessful = projectClusterToPlanarModel(pFilteredClusteredCloud,
                                                             pPlanarClusterCloud,
                                                             planeModelCoefficients);
             if (!isSuccessful)
@@ -364,10 +375,10 @@ LidarDataProcessor::EProcessingResult LidarDataProcessor::processData(
 
                     pcl::PointCloud<pcl::PointXYZRGB>::Ptr pVisPointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
                     int counter = 0;
-                    for (pcl::PointCloud<PointType>::iterator itr = pPlanarClusterCloud->begin();
+                    for (pcl::PointCloud<InputPointType>::iterator itr = pPlanarClusterCloud->begin();
                          itr != pPlanarClusterCloud->end(); ++itr)
                     {
-                        pcl::PointXYZRGB pnt(255, 255, 255);
+                        pcl::PointXYZRGB pnt(static_cast<uint8_t>(255), static_cast<uint8_t>(255), static_cast<uint8_t>(255));
                         pnt.x = itr->x;
                         pnt.y = itr->y;
                         pnt.z = itr->z;
@@ -675,6 +686,43 @@ bool LidarDataProcessor::testClusterSize(
               bboxAspectRatio <= MAX_ASPECT_RATIO);
 
     return retVal;
+}
+
+pcl::PointCloud<pcl::PointXYZI>::Ptr LidarDataProcessor::filterNearMaxZ(
+    const pcl::PointCloud<pcl::PointXYZI>::Ptr& ipCluster) {
+
+    pcl::PointCloud<pcl::PointXYZI>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZI>);
+    if (!ipCluster || ipCluster->empty()) {
+        RCLCPP_WARN(logger_, "Input cloud is null or empty");
+        return filteredCloud; // Return the empty cloud
+    }
+
+    float max_z = -std::numeric_limits<float>::infinity();
+    bool found_valid_point = false;
+
+    for (const auto& point : ipCluster->points) {
+        if (std::isfinite(point.z) && point.z > max_z) {
+                max_z = point.z;
+                found_valid_point = true;
+        }
+    }
+
+    if (!found_valid_point) {
+        RCLCPP_WARN(logger_, "No valid Z value found in the input cloud");
+        return filteredCloud;
+    }
+
+    float z_threshold = max_z - calibrationTarget_.boardSize.height;
+    for (const auto& point : ipCluster->points) {
+        if (std::isfinite(point.z) && point.z >= z_threshold) {
+            filteredCloud->push_back(point);
+        }
+    }
+
+    filteredCloud->width = filteredCloud->points.size();
+    filteredCloud->height = 1;
+    filteredCloud->is_dense = true;
+    return filteredCloud;
 }
 
 //==================================================================================================

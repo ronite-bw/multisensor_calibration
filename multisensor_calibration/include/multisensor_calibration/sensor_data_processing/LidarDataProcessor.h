@@ -180,6 +180,8 @@ class LidarDataProcessor : public DataProcessor3d
     bool testClusterSize(const pcl::PointCloud<InputPointType>::Ptr& ipCluster,
                          Eigen::Matrix4f& oBboxTransform) const;
 
+    pcl::PointCloud<pcl::PointXYZI>::Ptr filterNearMaxZ(const pcl::PointCloud<pcl::PointXYZI>::Ptr &ipCluster);
+
     //--- STATIC FUNCTION DECLARATION ---//
 
   public:
